@@ -45,7 +45,7 @@ import org.mapdb.store.MutableStore;
  * success. Classes jere also contain methods to get and
  * unconditionally set values.
  * </p><p>
- *
+ * <p>
  * The specifications of these methods enable to
  * employ more efficient internal DB locking. CompareAndSwap
  * operation is typically faster than using transactions, global lock or other
@@ -75,8 +75,8 @@ import org.mapdb.store.MutableStore;
  * classes.  The {@code compareAndSet} method is not a general
  * replacement for locking.  It applies only when critical updates for an
  * object are confined to a <em>single</em> record.
- *</p><p>
- *
+ * </p><p>
+ * <p>
  * Atomic classes are not general purpose replacements for
  * {@code java.lang.Integer} and related classes.  They do <em>not</em>
  * define methods such as {@code hashCode} and
@@ -85,18 +85,18 @@ import org.mapdb.store.MutableStore;
  * classes are provided only for those types that are commonly useful in
  * intended applications. Other types has to be wrapped into general {@link Atomic.Var}
  * </p><p>
- *
+ * <p>
  * You can also hold floats using
  * {@link java.lang.Float#floatToIntBits} and
  * {@link java.lang.Float#intBitsToFloat} conversions, and doubles using
  * {@link java.lang.Double#doubleToLongBits} and
  * {@link java.lang.Double#longBitsToDouble} conversions.
  * </p>
- *
  */
 final public class Atomic {
 
-    private Atomic(){}
+    private Atomic() {
+    }
 
 
     /**
@@ -109,9 +109,9 @@ final public class Atomic {
      */
     public final static class Integer extends Number {
 
-		private static final long serialVersionUID = 4615119399830853054L;
-		
-		protected final MutableStore store;
+        private static final long serialVersionUID = 4615119399830853054L;
+
+        protected final MutableStore store;
         protected final long recid;
 
         public Integer(MutableStore store, long recid) {
@@ -122,7 +122,7 @@ final public class Atomic {
         /**
          * @return recid under which value is saved
          */
-        public long getRecid(){
+        public long getRecid() {
             return recid;
         }
 
@@ -152,7 +152,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final int getAndSet(int newValue) {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 if (compareAndSet(current, newValue)) {
                     return current;
@@ -180,7 +180,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final int getAndIncrement() {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 int next = current + 1;
                 if (compareAndSet(current, next)) {
@@ -195,7 +195,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final int getAndDecrement() {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 int next = current - 1;
                 if (compareAndSet(current, next)) {
@@ -211,7 +211,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final int getAndAdd(int delta) {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 int next = current + delta;
                 if (compareAndSet(current, next)) {
@@ -226,7 +226,7 @@ final public class Atomic {
          * @return the updated value
          */
         public final int incrementAndGet() {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 int next = current + 1;
                 if (compareAndSet(current, next)) {
@@ -241,7 +241,7 @@ final public class Atomic {
          * @return the updated value
          */
         public final int decrementAndGet() {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 int next = current - 1;
                 if (compareAndSet(current, next)) {
@@ -257,7 +257,7 @@ final public class Atomic {
          * @return the updated value
          */
         public final int addAndGet(int delta) {
-            for (;;) {
+            for (; ; ) {
                 int current = get();
                 int next = current + delta;
                 if (compareAndSet(current, next)) {
@@ -268,6 +268,7 @@ final public class Atomic {
 
         /**
          * Returns the String representation of the current value.
+         *
          * @return the String representation of the current value.
          */
         public java.lang.String toString() {
@@ -280,15 +281,15 @@ final public class Atomic {
         }
 
         public long longValue() {
-            return (long)get();
+            return (long) get();
         }
 
         public float floatValue() {
-            return (float)get();
+            return (float) get();
         }
 
         public double doubleValue() {
-            return (double)get();
+            return (double) get();
         }
 
     }
@@ -302,11 +303,11 @@ final public class Atomic {
      * {@code Number} to allow uniform access by tools and utilities that
      * deal with numerically-based classes.
      */
-    public final static class Long extends Number{
+    public final static class Long extends Number {
 
-		private static final long serialVersionUID = 2882620413591274781L;
-		
-		protected final MutableStore store;
+        private static final long serialVersionUID = 2882620413591274781L;
+
+        protected final MutableStore store;
         protected final long recid;
 
         public Long(MutableStore store, long recid) {
@@ -317,7 +318,7 @@ final public class Atomic {
         /**
          * @return recid under which value is saved
          */
-        public long getRecid(){
+        public long getRecid() {
             return recid;
         }
 
@@ -422,7 +423,7 @@ final public class Atomic {
          * @return the updated value
          */
         public final long incrementAndGet() {
-            for (;;) {
+            for (; ; ) {
                 long current = get();
                 long next = current + 1;
                 if (compareAndSet(current, next)) {
@@ -437,7 +438,7 @@ final public class Atomic {
          * @return the updated value
          */
         public final long decrementAndGet() {
-            for (;;) {
+            for (; ; ) {
                 long current = get();
                 long next = current - 1;
                 if (compareAndSet(current, next)) {
@@ -453,7 +454,7 @@ final public class Atomic {
          * @return the updated value
          */
         public final long addAndGet(long delta) {
-            for (;;) {
+            for (; ; ) {
                 long current = get();
                 long next = current + delta;
                 if (compareAndSet(current, next)) {
@@ -464,6 +465,7 @@ final public class Atomic {
 
         /**
          * Returns the String representation of the current value.
+         *
          * @return the String representation of the current value.
          */
         public java.lang.String toString() {
@@ -472,7 +474,7 @@ final public class Atomic {
 
 
         public int intValue() {
-            return (int)get();
+            return (int) get();
         }
 
         public long longValue() {
@@ -480,11 +482,11 @@ final public class Atomic {
         }
 
         public float floatValue() {
-            return (float)get();
+            return (float) get();
         }
 
         public double doubleValue() {
-            return (double)get();
+            return (double) get();
         }
 
     }
@@ -506,7 +508,7 @@ final public class Atomic {
         /**
          * @return recid under which value is saved
          */
-        public long getRecid(){
+        public long getRecid() {
             return recid;
         }
 
@@ -551,7 +553,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final boolean getAndSet(boolean newValue) {
-            for (;;) {
+            for (; ; ) {
                 boolean current = get();
                 if (compareAndSet(current, newValue)) {
                     return current;
@@ -561,6 +563,7 @@ final public class Atomic {
 
         /**
          * Returns the String representation of the current value.
+         *
          * @return the String representation of the current value.
          */
         public java.lang.String toString() {
@@ -570,9 +573,9 @@ final public class Atomic {
     }
 
     /**
-    * A {@code String} record that may be updated atomically.
-    */
-    public final static class String{
+     * A {@code String} record that may be updated atomically.
+     */
+    public final static class String {
 
         protected final MutableStore store;
         protected final long recid;
@@ -586,7 +589,7 @@ final public class Atomic {
         /**
          * @return recid under which value is saved
          */
-        public long getRecid(){
+        public long getRecid() {
             return recid;
         }
 
@@ -634,7 +637,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final java.lang.String getAndSet(java.lang.String newValue) {
-            for (;;) {
+            for (; ; ) {
                 java.lang.String current = get();
                 if (compareAndSet(current, newValue)) {
                     return current;
@@ -670,14 +673,14 @@ final public class Atomic {
         /**
          * @return recid under which value is saved
          */
-        public long getRecid(){
+        public long getRecid() {
             return recid;
         }
 
 
         public java.lang.String toString() {
             E v = get();
-            return v==null? null : v.toString();
+            return v == null ? null : v.toString();
         }
 
         /**
@@ -720,7 +723,7 @@ final public class Atomic {
          * @return the previous value
          */
         public final E getAndSet(E newValue) {
-            for (;;) {
+            for (; ; ) {
                 E current = get();
                 if (compareAndSet(current, newValue)) {
                     return current;

@@ -43,7 +43,7 @@ public class JavaSerializer<E> extends DefaultGroupSerializer<E> {
         try {
             ObjectInputStream in2 = new ObjectInputStream(new DataInputToStream(in));
             Object[] ret = (Object[]) in2.readObject();
-            if(CC.PARANOID && size!=valueArraySize(ret))
+            if (CC.PARANOID && size != valueArraySize(ret))
                 throw new AssertionError();
             return ret;
         } catch (ClassNotFoundException e) {

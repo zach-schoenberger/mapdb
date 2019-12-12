@@ -7,20 +7,23 @@ import org.mapdb.io.DataIO
 import org.mapdb.io.DataInput2ByteArray
 import org.mapdb.ser.Serializer
 import org.mapdb.ser.Serializers
-import org.mapdb.util.*
+import org.mapdb.util.assertReadLock
+import org.mapdb.util.assertWriteLock
+import org.mapdb.util.lockRead
+import org.mapdb.util.lockWrite
+import org.mapdb.util.newReadWriteLock
 import java.nio.ByteBuffer
 import java.nio.MappedByteBuffer
-import java.util.*
+import java.util.Arrays
 
 class StoreDirect(
-        private val b: ByteBuffer,
-        override val isThreadSafe: Boolean = true
-    ) :MutableStore{
-
+    private val b: ByteBuffer,
+    override val isThreadSafe: Boolean = true
+) : MutableStore {
 
     companion object {
-        val blockSize:Long = 1024*1024
-        val maskOffset =  0x0000FFFFFFFFFFF0L
+        val blockSize: Long = 1024 * 1024
+        val maskOffset = 0x0000FFFFFFFFFFF0L
 
         val recordTypeMask = 0xEL // 1110
 
@@ -28,9 +31,9 @@ class StoreDirect(
         val recordtTypeLarge = 0x2L
         val recordTypeIndex = 0x6L
 
-        val indexRecordSizeMask= 0xF0L
+        val indexRecordSizeMask = 0xF0L
 
-        val indexValNull:Long = 8L.shl(4).or(recordTypeIndex)
+        val indexValNull: Long = 8L.shl(4).or(recordTypeIndex)
 
         val maxSmallRecordSize = 0xFFFFL
     }
@@ -39,83 +42,80 @@ class StoreDirect(
 
     private val indexPages = LongLongHashMap()
 
-    private var maxRecid:Long = 0L
+    private var maxRecid: Long = 0L
 
-    private var eof:Long = blockSize
+    private var eof: Long = blockSize
 
     private val freeRecids = LongArrayList()
 
     /** release free space */
-    private fun spaceRelease(offset:Long, size:Int){
-
+    private fun spaceRelease(offset: Long, size: Int) {
     }
 
-    init{
+    init {
         //find max recid
-        for(recid in 1L until blockSize/8){
-            if(b.getLong(8*recid.toInt())!=0L)
+        for (recid in 1L until blockSize / 8) {
+            if (b.getLong(8 * recid.toInt()) != 0L)
                 maxRecid = recid
         }
         //restore free recids
-        for(recid in 1L .. maxRecid){
-            if(b.getLong(8*recid.toInt())==0L)
+        for (recid in 1L..maxRecid) {
+            if (b.getLong(8 * recid.toInt()) == 0L)
                 freeRecids.add(recid)
         }
     }
 
     /** allocate record of given size, returns offset */
-    private fun spaceAllocate(size:Int):Long{
+    private fun spaceAllocate(size: Int): Long {
         lock.assertWriteLock()
-        assert(size>=0)
+        assert(size >= 0)
         val ret = eof
-        eof+=DataIO.roundUp(size, 16)
+        eof += DataIO.roundUp(size, 16)
 
-        assert(ret%16==0L)
+        assert(ret % 16 == 0L)
         return ret
     }
 
-
-    private fun indexGet(recid:Long):Long{
-        val indexValOffset = recid*8
-        assert(indexValOffset< blockSize)
+    private fun indexGet(recid: Long): Long {
+        val indexValOffset = recid * 8
+        assert(indexValOffset < blockSize)
         return b.getLong(indexValOffset.toInt())
     }
 
-    private fun indexUpdate(recid: Long, indexVal:Long){
-        val indexValOffset = recid*8
+    private fun indexUpdate(recid: Long, indexVal: Long) {
+        val indexValOffset = recid * 8
         b.putLong(indexValOffset.toInt(), indexVal)
     }
 
-    private fun indexVal(size: Int, offset: Long):Long{
-        assert(size<256*256)
-        assert(offset<Int.MAX_VALUE)
-        assert(offset%16==0L)
+    private fun indexVal(size: Int, offset: Long): Long {
+        assert(size < 256 * 256)
+        assert(offset < Int.MAX_VALUE)
+        assert(offset % 16 == 0L)
         return size.toLong().shl(48).or(offset).or(recordTypeSmall)
     }
 
-    private fun indexValToSize(indexVal:Long) = indexVal.ushr(48)
+    private fun indexValToSize(indexVal: Long) = indexVal.ushr(48)
 
-    private fun indexValToOffset(indexVal:Long) = indexVal.and(maskOffset)
+    private fun indexValToOffset(indexVal: Long) = indexVal.and(maskOffset)
 
-    private fun recidAllocate(indexVal:Long):Long{
+    private fun recidAllocate(indexVal: Long): Long {
         lock.assertWriteLock()
         val recid =
-                if(freeRecids.isEmpty) ++maxRecid
-                else freeRecids.removeAtIndex(freeRecids.size()-1)
+            if (freeRecids.isEmpty) ++maxRecid
+            else freeRecids.removeAtIndex(freeRecids.size() - 1)
 
-        assert(recid*8<blockSize)
-        assert(b.getLong(8*recid.toInt())==0L)
-        b.putLong(8*recid.toInt(), indexVal)
+        assert(recid * 8 < blockSize)
+        assert(b.getLong(8 * recid.toInt()) == 0L)
+        b.putLong(8 * recid.toInt(), indexVal)
         return recid
     }
 
-    private fun recidRelease(recid:Long){
+    private fun recidRelease(recid: Long) {
         lock.assertWriteLock()
-        assert(recid*8<blockSize)
+        assert(recid * 8 < blockSize)
         freeRecids.add(recid)
-        b.putLong(8*recid.toInt(), 0L)
+        b.putLong(8 * recid.toInt(), 0L)
     }
-
 
     private fun read(size: Long, offset: Long): ByteArray {
         lock.assertReadLock()
@@ -128,7 +128,6 @@ class StoreDirect(
         return bb
     }
 
-
     private fun write(offset: Long, bb: ByteArray?) {
         lock.assertWriteLock()
         val b2 = b.duplicate()
@@ -138,14 +137,14 @@ class StoreDirect(
 
     override fun <K> get(recid: Long, serializer: Serializer<K>): K? {
         lock.lockRead {
-           if(recid>maxRecid)
-               throw DBException.RecidNotFound()
-
-            val indexVal = indexGet(recid)
-            if(indexVal == 0L)
+            if (recid > maxRecid)
                 throw DBException.RecidNotFound()
 
-            return when(indexVal.and(recordTypeMask)){
+            val indexVal = indexGet(recid)
+            if (indexVal == 0L)
+                throw DBException.RecidNotFound()
+
+            return when (indexVal.and(recordTypeMask)) {
                 recordTypeSmall -> getRecordSmall(indexVal, serializer)
                 recordTypeIndex -> getRecordIndex(indexVal, serializer)
                 recordtTypeLarge -> getRecordLarge(indexVal, serializer)
@@ -158,48 +157,49 @@ class StoreDirect(
 
     private fun <K> getRecordIndex(indexVal: Long, serializer: Serializer<K>): K? {
         val size = indexVal.and(indexRecordSizeMask).ushr(4).toInt()
-        if(size==8)
+        if (size == 8)
             return null
 
         val bb = ByteArray(8)
         DataIO.putLong(bb, 0, indexVal)
 
-        val bb2 = Arrays.copyOf(bb,size)
+        val bb2 = Arrays.copyOf(bb, size)
         return serializer.deserialize(DataInput2ByteArray(bb2))
     }
 
-    private fun <K> getRecordLarge(indexVal:Long, serializer: Serializer<K>):K?  {
+    private fun <K> getRecordLarge(indexVal: Long, serializer: Serializer<K>): K? {
         val size = indexValToSize(indexVal)
         val offset = indexValToOffset(indexVal)
 
         val linkCount = b.getChar(offset.toInt()).toInt()
-        assert(linkCount>0)
-        assert(offset+size>=linkCount*8+8)
-        val links = (0 until linkCount).map{i->
-            val linkOffset = offset + 2 + i*8
+        assert(linkCount > 0)
+        assert(offset + size >= linkCount * 8 + 8)
+        val links = (0 until linkCount).map { i ->
+            val linkOffset = offset + 2 + i * 8
             b.getLong(linkOffset.toInt())
         }.toLongArray()
 
-        val bbSize = links.map{it.ushr(48)}.sum()
+        val bbSize = links.map { it.ushr(48) }.sum()
         val bb = ByteArray(bbSize.toInt())
 
         var bbPos = 0L
         var b2 = b.duplicate()
-        for(link in links){
+        for (link in links) {
             val size = link.ushr(48)
-            assert(size>0)
+            assert(size > 0)
             val offset = link.and(maskOffset)
 
             b2.position(offset.toInt())
             b2.get(bb, bbPos.toInt(), size.toInt())
 
-            bbPos+=size
+            bbPos += size
         }
         assert(bbSize == bbPos)
 
         return serializer.deserialize(DataInput2ByteArray(bb))
     }
-    private fun <K> getRecordSmall(indexVal:Long, serializer: Serializer<K>):K?  {
+
+    private fun <K> getRecordSmall(indexVal: Long, serializer: Serializer<K>): K? {
         val size = indexValToSize(indexVal)
         val offset = indexValToOffset(indexVal)
 
@@ -254,30 +254,30 @@ class StoreDirect(
 
         lock.lockWrite {
             val indexVal = indexGet(recid)
-            if(indexVal==0L)
+            if (indexVal == 0L)
                 throw DBException.RecidNotFound()
-            if(indexVal!=1L){
+            if (indexVal != 1L) {
                 //release old space
                 spaceRelease(indexValToOffset(indexVal), indexValToSize(indexVal).toInt())
             }
 
-            if(bb==null) {
+            if (bb == null) {
                 //write null
                 indexUpdate(recid, indexValNull)
-            }else if(bb.size<8){
+            } else if (bb.size < 8) {
                 val bb8 = Arrays.copyOf(bb, 8)
                 val indexVal = DataIO.getLong(bb8, 0)
-                        .or(bb.size.toLong().shl(4))
-                        .or(recordTypeIndex)
+                    .or(bb.size.toLong().shl(4))
+                    .or(recordTypeIndex)
                 indexUpdate(recid, indexVal)
-            }else if(bb.size<= maxSmallRecordSize){
+            } else if (bb.size <= maxSmallRecordSize) {
                 //small record
 
                 val offset = spaceAllocate(bb.size)
 
                 write(offset, bb)
                 indexUpdate(recid, indexVal(bb.size, offset))
-            }else{
+            } else {
                 updateRecordLarge(bb, recid)
             }
         }
@@ -298,7 +298,7 @@ class StoreDirect(
             b2.put(bb, bbPos, partSize.toInt())
 
             val linkVal = partSize.toLong().shl(48).or(partOffset)
-            b.putLong(rootOffset.toInt()+2 + count * 8, linkVal)
+            b.putLong(rootOffset.toInt() + 2 + count * 8, linkVal)
 
             count++
             bbPos += partSize
@@ -311,17 +311,21 @@ class StoreDirect(
         indexUpdate(recid, indexVal)
     }
 
-
     override fun <K> updateAtomic(recid: Long, serializer: Serializer<K>, m: (K?) -> K?) {
         lock.lockWrite {
             updateWeak(recid, serializer, m)
         }
     }
 
-    override fun <K> compareAndUpdate(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?, newRecord: K?): Boolean {
+    override fun <K> compareAndUpdate(
+        recid: Long,
+        serializer: Serializer<K>,
+        expectedOldRecord: K?,
+        newRecord: K?
+    ): Boolean {
         lock.lockWrite {
             val old = get(recid, serializer)
-            if(old!=expectedOldRecord)
+            if (old != expectedOldRecord)
                 return false
             update(recid, serializer, newRecord)
             return true
@@ -331,7 +335,7 @@ class StoreDirect(
     override fun <K> compareAndDelete(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?): Boolean {
         lock.lockWrite {
             val old = get(recid, serializer)
-            if(old!=expectedOldRecord)
+            if (old != expectedOldRecord)
                 return false
             delete(recid, serializer)
             return true
@@ -341,37 +345,38 @@ class StoreDirect(
     override fun <K> delete(recid: Long, serializer: Serializer<K>) {
         lock.lockWrite {
             val indexVal = indexGet(recid)
-            if(indexVal==0L)
+            if (indexVal == 0L)
                 throw DBException.RecidNotFound()
 
             recidRelease(recid)
 
-            when(indexVal.and(recordTypeMask)){
+            when (indexVal.and(recordTypeMask)) {
                 recordTypeSmall -> deleteRecordSmall(indexVal)
-                recordTypeIndex -> {} //no space to release
+                recordTypeIndex -> {
+                } //no space to release
                 recordtTypeLarge -> deleteRecordLarge(indexVal)
                 else -> throw DBException.DataAssert("unknown record type")
             }
         }
     }
 
-    private fun deleteRecordSmall(indexVal: Long){
+    private fun deleteRecordSmall(indexVal: Long) {
         lock.assertWriteLock()
         val offset = indexValToOffset(indexVal)
         val size = indexValToSize(indexVal)
-        assert(size>0)
+        assert(size > 0)
         spaceRelease(offset, size.toInt())
     }
 
-    private fun deleteRecordLarge(indexVal:Long){
+    private fun deleteRecordLarge(indexVal: Long) {
         lock.assertWriteLock()
         val offset = indexValToOffset(indexVal)
         val size = indexValToSize(indexVal)
 
         val linkCount = b.getChar(offset.toInt()).toInt()
-        assert(offset+size>=linkCount*8+8)
-        for(i in 0 until linkCount){
-            val linkOffset = offset + 2 + i*8
+        assert(offset + size >= linkCount * 8 + 8)
+        for (i in 0 until linkCount) {
+            val linkOffset = offset + 2 + i * 8
             val linkVal = b.getLong(linkOffset.toInt())
             deleteRecordSmall(linkVal)
         }
@@ -383,7 +388,7 @@ class StoreDirect(
     }
 
     override fun commit() {
-        if(b is MappedByteBuffer)
+        if (b is MappedByteBuffer)
             b.force()
     }
 
@@ -391,6 +396,5 @@ class StoreDirect(
     }
 
     override fun close() {
-
     }
 }

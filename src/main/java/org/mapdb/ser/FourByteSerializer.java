@@ -126,7 +126,7 @@ public abstract class FourByteSerializer<E> implements GroupSerializer<E, int[]>
 
     @Override
     public E valueArrayBinaryGet(DataInput2 input, int keysLen, int pos) throws IOException {
-        input.skipBytes(pos*4);
+        input.skipBytes(pos * 4);
         return unpack(input.readInt());
     }
 

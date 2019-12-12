@@ -9,7 +9,7 @@ import java.io.IOException;
 /**
  * Created by jan on 2/28/16.
  */
-public class RecidArraySerializer extends LongArraySerializer{
+public class RecidArraySerializer extends LongArraySerializer {
 
     @Override
     public void serialize(DataOutput2 out, long[] value) throws IOException {

@@ -12,21 +12,23 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Comparator;
 
-/** wraps another serializer and (de)compresses its output/input*/
-public final class CompressionSerializerWrapper<E,G> implements GroupSerializer<E,G>, Serializable {
+/**
+ * wraps another serializer and (de)compresses its output/input
+ */
+public final class CompressionSerializerWrapper<E, G> implements GroupSerializer<E, G>, Serializable {
 
     private static final long serialVersionUID = 4440826457939614346L;
-    protected final GroupSerializer<E,G> serializer;
+    protected final GroupSerializer<E, G> serializer;
     protected final ThreadLocal<CompressLZF> LZF = new ThreadLocal<CompressLZF>() {
-        @Override protected CompressLZF initialValue() {
+        @Override
+        protected CompressLZF initialValue() {
             return new CompressLZF();
         }
     };
 
-    public CompressionSerializerWrapper(GroupSerializer<E,G> serializer) {
+    public CompressionSerializerWrapper(GroupSerializer<E, G> serializer) {
         this.serializer = serializer;
     }
-
 
 
 //        /** used for deserialization */
@@ -41,24 +43,24 @@ public final class CompressionSerializerWrapper<E,G> implements GroupSerializer<
     @Override
     public void serialize(DataOutput2 out, E value) throws IOException {
         DataOutput2ByteArray out2 = new DataOutput2ByteArray();
-        serializer.serialize(out2,value);
+        serializer.serialize(out2, value);
 
-        byte[] tmp = new byte[out2.pos+41];
+        byte[] tmp = new byte[out2.pos + 41];
         int newLen;
-        try{
-            newLen = LZF.get().compress(out2.buf,out2.pos,tmp,0);
-        }catch(IndexOutOfBoundsException e){
-            newLen=0; //larger after compression
+        try {
+            newLen = LZF.get().compress(out2.buf, out2.pos, tmp, 0);
+        } catch (IndexOutOfBoundsException e) {
+            newLen = 0; //larger after compression
         }
-        if(newLen>=out2.pos||newLen==0){
+        if (newLen >= out2.pos || newLen == 0) {
             //compression adds size, so do not compress
             out.packInt(0);
-            out.write(out2.buf,0,out2.pos);
+            out.write(out2.buf, 0, out2.pos);
             return;
         }
 
-        out.packInt( out2.pos+1); //unpacked size, zero indicates no compression
-        out.write(tmp,0,newLen);
+        out.packInt(out2.pos + 1); //unpacked size, zero indicates no compression
+        out.write(tmp, 0, newLen);
     }
 
     @Nullable
@@ -70,35 +72,35 @@ public final class CompressionSerializerWrapper<E,G> implements GroupSerializer<
 
     @Override
     public E deserialize(DataInput2 in) throws IOException {
-        final int unpackedSize = in.unpackInt()-1;
-        if(unpackedSize==-1){
+        final int unpackedSize = in.unpackInt() - 1;
+        if (unpackedSize == -1) {
             //was not compressed
             return serializer.deserialize(in);
         }
 
         byte[] unpacked = new byte[unpackedSize];
-        LZF.get().expand(in,unpacked,0,unpackedSize);
+        LZF.get().expand(in, unpacked, 0, unpackedSize);
         DataInput2ByteArray in2 = new DataInput2ByteArray(unpacked);
-        E ret =  serializer.deserialize(in2,unpackedSize);
-        if(CC.ASSERT && ! (in2.getPos()==unpackedSize))
-            throw new DBException.DataCorruption( "data were not fully read");
+        E ret = serializer.deserialize(in2, unpackedSize);
+        if (CC.ASSERT && !(in2.getPos() == unpackedSize))
+            throw new DBException.DataCorruption("data were not fully read");
         return ret;
     }
 
     //TODO fixed size ser @Override
     public E deserialize(DataInput2 in, int available) throws IOException {
-        final int unpackedSize = in.unpackInt()-1;
-        if(unpackedSize==-1){
+        final int unpackedSize = in.unpackInt() - 1;
+        if (unpackedSize == -1) {
             //was not compressed
-            return serializer.deserialize(in, available>0?available-1:available);
+            return serializer.deserialize(in, available > 0 ? available - 1 : available);
         }
 
         byte[] unpacked = new byte[unpackedSize];
-        LZF.get().expand(in,unpacked,0,unpackedSize);
+        LZF.get().expand(in, unpacked, 0, unpackedSize);
         DataInput2ByteArray in2 = new DataInput2ByteArray(unpacked);
-        E ret =  serializer.deserialize(in2,unpackedSize);
-        if(CC.ASSERT && ! (in2.getPos()==unpackedSize))
-            throw new DBException.DataCorruption( "data were not fully read");
+        E ret = serializer.deserialize(in2, unpackedSize);
+        if (CC.ASSERT && !(in2.getPos() == unpackedSize))
+            throw new DBException.DataCorruption("data were not fully read");
         return ret;
     }
 
@@ -136,45 +138,45 @@ public final class CompressionSerializerWrapper<E,G> implements GroupSerializer<
         DataOutput2ByteArray out2 = new DataOutput2ByteArray();
         serializer.valueArraySerialize(out2, vals);
 
-        if(out2.pos==0)
+        if (out2.pos == 0)
             return;
 
 
-        byte[] tmp = new byte[out2.pos+41];
+        byte[] tmp = new byte[out2.pos + 41];
         int newLen;
-        try{
-            newLen = LZF.get().compress(out2.buf,out2.pos,tmp,0);
-        }catch(IndexOutOfBoundsException e){
-            newLen=0; //larger after compression
+        try {
+            newLen = LZF.get().compress(out2.buf, out2.pos, tmp, 0);
+        } catch (IndexOutOfBoundsException e) {
+            newLen = 0; //larger after compression
         }
-        if(newLen>=out2.pos||newLen==0){
+        if (newLen >= out2.pos || newLen == 0) {
             //compression adds size, so do not compress
             out.packInt(0);
-            out.write(out2.buf,0,out2.pos);
+            out.write(out2.buf, 0, out2.pos);
             return;
         }
 
-        out.packInt( out2.pos+1); //unpacked size, zero indicates no compression
-        out.write(tmp,0,newLen);
+        out.packInt(out2.pos + 1); //unpacked size, zero indicates no compression
+        out.write(tmp, 0, newLen);
     }
 
     @Override
     public G valueArrayDeserialize(DataInput2 in, int size) throws IOException {
-        if(size==0)
+        if (size == 0)
             return serializer.valueArrayEmpty();
 
-        final int unpackedSize = in.unpackInt()-1;
-        if(unpackedSize==-1){
+        final int unpackedSize = in.unpackInt() - 1;
+        if (unpackedSize == -1) {
             //was not compressed
-            return serializer.valueArrayDeserialize(in,size);
+            return serializer.valueArrayDeserialize(in, size);
         }
 
         byte[] unpacked = new byte[unpackedSize];
-        LZF.get().expand(in,unpacked,0,unpackedSize);
+        LZF.get().expand(in, unpacked, 0, unpackedSize);
         DataInput2ByteArray in2 = new DataInput2ByteArray(unpacked);
-        G ret =  serializer.valueArrayDeserialize(in2, size);
-        if(CC.ASSERT && ! (in2.getPos()==unpackedSize))
-            throw new DBException.DataCorruption( "data were not fully read");
+        G ret = serializer.valueArrayDeserialize(in2, size);
+        if (CC.ASSERT && !(in2.getPos() == unpackedSize))
+            throw new DBException.DataCorruption("data were not fully read");
         return ret;
     }
 
@@ -210,7 +212,7 @@ public final class CompressionSerializerWrapper<E,G> implements GroupSerializer<
 
     @Override
     public G valueArrayCopyOfRange(G vals, int from, int to) {
-        return  serializer.valueArrayCopyOfRange(vals, from, to);
+        return serializer.valueArrayCopyOfRange(vals, from, to);
     }
 
     @Override

@@ -13,22 +13,24 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
-/** wraps another serializer and (de)compresses its output/input using Deflate*/
+/**
+ * wraps another serializer and (de)compresses its output/input using Deflate
+ */
 public final class CompressionDeflateSerializerWrapper<E, G> implements GroupSerializer<E, G>, Serializable {
 
     private static final long serialVersionUID = 8529699349939823553L;
-    protected final GroupSerializer<E,G> serializer;
+    protected final GroupSerializer<E, G> serializer;
     protected final int compressLevel;
     protected final byte[] dictionary;
 
-    public CompressionDeflateSerializerWrapper(GroupSerializer<E,G> serializer) {
+    public CompressionDeflateSerializerWrapper(GroupSerializer<E, G> serializer) {
         this(serializer, Deflater.DEFAULT_STRATEGY, null);
     }
 
-    public CompressionDeflateSerializerWrapper(GroupSerializer<E,G> serializer, int compressLevel, byte[] dictionary) {
+    public CompressionDeflateSerializerWrapper(GroupSerializer<E, G> serializer, int compressLevel, byte[] dictionary) {
         this.serializer = serializer;
         this.compressLevel = compressLevel;
-        this.dictionary = dictionary==null || dictionary.length==0 ? null : dictionary;
+        this.dictionary = dictionary == null || dictionary.length == 0 ? null : dictionary;
     }
 
 //        /** used for deserialization */
@@ -57,44 +59,44 @@ public final class CompressionDeflateSerializerWrapper<E, G> implements GroupSer
     @Override
     public void serialize(DataOutput2 out, E value) throws IOException {
         DataOutput2ByteArray out2 = new DataOutput2ByteArray();
-        serializer.serialize(out2,value);
+        serializer.serialize(out2, value);
 
-        byte[] tmp = new byte[out2.pos+41];
+        byte[] tmp = new byte[out2.pos + 41];
         int newLen;
-        try{
+        try {
             Deflater deflater = new Deflater(compressLevel);
-            if(dictionary!=null) {
+            if (dictionary != null) {
                 deflater.setDictionary(dictionary);
             }
 
-            deflater.setInput(out2.buf,0,out2.pos);
+            deflater.setInput(out2.buf, 0, out2.pos);
             deflater.finish();
             newLen = deflater.deflate(tmp);
             //LZF.get().compress(out2.buf,out2.pos,tmp,0);
-        }catch(IndexOutOfBoundsException e){
-            newLen=0; //larger after compression
+        } catch (IndexOutOfBoundsException e) {
+            newLen = 0; //larger after compression
         }
-        if(newLen>=out2.pos||newLen==0){
+        if (newLen >= out2.pos || newLen == 0) {
             //compression adds size, so do not compress
             out.packInt(0);
-            out.write(out2.buf,0,out2.pos);
+            out.write(out2.buf, 0, out2.pos);
             return;
         }
 
-        out.packInt( out2.pos+1); //unpacked size, zero indicates no compression
-        out.write(tmp,0,newLen);
+        out.packInt(out2.pos + 1); //unpacked size, zero indicates no compression
+        out.write(tmp, 0, newLen);
     }
 
     @Override
     public E deserialize(DataInput2 in) throws IOException {
-        final int unpackedSize = in.unpackInt()-1;
-        if(unpackedSize==-1){
+        final int unpackedSize = in.unpackInt() - 1;
+        if (unpackedSize == -1) {
             //was not compressed
             return serializer.deserialize(in); // TODO fixed size, available>0?available-1:available
         }
 
         Inflater inflater = new Inflater();
-        if(dictionary!=null) {
+        if (dictionary != null) {
             inflater.setDictionary(dictionary);
         }
 
@@ -102,12 +104,12 @@ public final class CompressionDeflateSerializerWrapper<E, G> implements GroupSer
                 new DataInputToStream(in), inflater);
 
         byte[] unpacked = new byte[unpackedSize];
-        in4.read(unpacked,0,unpackedSize);
+        in4.read(unpacked, 0, unpackedSize);
 
         DataInput2ByteArray in2 = new DataInput2ByteArray(unpacked);
-        E ret =  serializer.deserialize(in2,unpackedSize);
-        if(CC.ASSERT && ! (in2.getPos()==unpackedSize))
-            throw new DBException.DataCorruption( "data were not fully read");
+        E ret = serializer.deserialize(in2, unpackedSize);
+        if (CC.ASSERT && !(in2.getPos() == unpackedSize))
+            throw new DBException.DataCorruption("data were not fully read");
         return ret;
     }
 
@@ -151,51 +153,51 @@ public final class CompressionDeflateSerializerWrapper<E, G> implements GroupSer
     @Override
     public void valueArraySerialize(DataOutput2 out, G vals) throws IOException {
         DataOutput2ByteArray out2 = new DataOutput2ByteArray();
-        serializer.valueArraySerialize(out2,vals);
-        if(out2.pos==0)
+        serializer.valueArraySerialize(out2, vals);
+        if (out2.pos == 0)
             return;
 
-        byte[] tmp = new byte[out2.pos+41];
+        byte[] tmp = new byte[out2.pos + 41];
         int newLen;
-        try{
+        try {
             Deflater deflater = new Deflater(compressLevel);
-            if(dictionary!=null) {
+            if (dictionary != null) {
                 deflater.setDictionary(dictionary);
             }
 
-            deflater.setInput(out2.buf,0,out2.pos);
+            deflater.setInput(out2.buf, 0, out2.pos);
             deflater.finish();
             newLen = deflater.deflate(tmp);
             //LZF.get().compress(out2.buf,out2.pos,tmp,0);
-        }catch(IndexOutOfBoundsException e){
-            newLen=0; //larger after compression
+        } catch (IndexOutOfBoundsException e) {
+            newLen = 0; //larger after compression
         }
-        if(newLen>=out2.pos||newLen==0){
+        if (newLen >= out2.pos || newLen == 0) {
             //compression adds size, so do not compress
             out.packInt(0);
-            out.write(out2.buf,0,out2.pos);
+            out.write(out2.buf, 0, out2.pos);
             return;
         }
 
-        out.packInt( out2.pos+1); //unpacked size, zero indicates no compression
-        out.write(tmp,0,newLen);
+        out.packInt(out2.pos + 1); //unpacked size, zero indicates no compression
+        out.write(tmp, 0, newLen);
     }
 
     @Override
     public G valueArrayDeserialize(DataInput2 in, int size) throws IOException {
-        if(size==0) {
+        if (size == 0) {
             return serializer.valueArrayEmpty();
         }
 
         //decompress all values in single blob, it has better compressibility
-        final int unpackedSize = in.unpackInt()-1;
-        if(unpackedSize==-1){
+        final int unpackedSize = in.unpackInt() - 1;
+        if (unpackedSize == -1) {
             //was not compressed
-            return serializer.valueArrayDeserialize(in,size);
+            return serializer.valueArrayDeserialize(in, size);
         }
 
         Inflater inflater = new Inflater();
-        if(dictionary!=null) {
+        if (dictionary != null) {
             inflater.setDictionary(dictionary);
         }
 
@@ -203,14 +205,14 @@ public final class CompressionDeflateSerializerWrapper<E, G> implements GroupSer
                 new DataInputToStream(in), inflater);
 
         byte[] unpacked = new byte[unpackedSize];
-        in4.read(unpacked,0,unpackedSize);
+        in4.read(unpacked, 0, unpackedSize);
 
         //now got data unpacked, so use serializer to deal with it
 
         DataInput2ByteArray in2 = new DataInput2ByteArray(unpacked);
-        G ret =  serializer.valueArrayDeserialize(in2, size);
-        if(CC.ASSERT && ! (in2.getPos()==unpackedSize))
-            throw new DBException.DataCorruption( "data were not fully read");
+        G ret = serializer.valueArrayDeserialize(in2, size);
+        if (CC.ASSERT && !(in2.getPos() == unpackedSize))
+            throw new DBException.DataCorruption("data were not fully read");
         return ret;
     }
 

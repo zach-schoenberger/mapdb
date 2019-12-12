@@ -7,40 +7,42 @@ import java.util.Arrays;
 /**
  * Output of serialization
  */
-public class DataOutput2ByteArray extends OutputStream implements DataOutput2{
+public class DataOutput2ByteArray extends OutputStream implements DataOutput2 {
 
     public byte[] buf;
     public int pos; //TODO private fields vs getters?
     public int sizeMask;
 
 
-    public DataOutput2ByteArray(){
+    public DataOutput2ByteArray() {
         pos = 0;
         buf = new byte[128]; //PERF take hint from serializer for initial size
-        sizeMask = 0xFFFFFFFF-(buf.length-1);
+        sizeMask = 0xFFFFFFFF - (buf.length - 1);
     }
 
 
-    @Override public byte[] copyBytes(){
+    @Override
+    public byte[] copyBytes() {
         return Arrays.copyOf(buf, pos);
     }
 
     /**
      * make sure there will be enough space in buffer to write N bytes
+     *
      * @param n number of bytes which can be safely written after this method returns
      */
     protected void ensureAvail(int n) {
         //$DELAY$
-        n+=pos;
-        if ((n&sizeMask)!=0) {
+        n += pos;
+        if ((n & sizeMask) != 0) {
             grow(n);
         }
     }
 
     private void grow(int n) {
         //$DELAY$
-        int newSize = Math.max(DataIO.nextPowTwo(n),buf.length);
-        sizeMask = 0xFFFFFFFF-(newSize-1);
+        int newSize = Math.max(DataIO.nextPowTwo(n), buf.length);
+        sizeMask = 0xFFFFFFFF - (newSize - 1);
         buf = Arrays.copyOf(buf, newSize);
     }
 
@@ -54,7 +56,7 @@ public class DataOutput2ByteArray extends OutputStream implements DataOutput2{
 
     @Override
     public void write(byte[] b) throws IOException {
-        write(b,0,b.length);
+        write(b, 0, b.length);
     }
 
     @Override
@@ -91,7 +93,7 @@ public class DataOutput2ByteArray extends OutputStream implements DataOutput2{
     @Override
     public void writeChar(final int v) throws IOException {
         ensureAvail(2);
-        buf[pos++] = (byte) (v>>>8);
+        buf[pos++] = (byte) (v >>> 8);
         buf[pos++] = (byte) (v);
     }
 

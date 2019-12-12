@@ -1,6 +1,6 @@
 package org.mapdb
 
-interface Validate{
+interface Validate {
 
     fun validate()
 }

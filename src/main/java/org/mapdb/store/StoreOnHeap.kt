@@ -11,24 +11,22 @@ import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 class StoreOnHeap(
-        override val isThreadSafe:Boolean=true
-):MutableStore{
+    override val isThreadSafe: Boolean = true
+) : MutableStore {
 
     protected val NULL_RECORD = Pair(null, null)
 
+    protected val lock: ReadWriteLock? = if (isThreadSafe) ReentrantReadWriteLock() else null
 
-    protected val lock: ReadWriteLock? = if(isThreadSafe) ReentrantReadWriteLock() else null
-
-    protected val records: LongObjectHashMap<Pair<Any?,Serializer<Any>?>> = LongObjectHashMap.newMap()
+    protected val records: LongObjectHashMap<Pair<Any?, Serializer<Any>?>> = LongObjectHashMap.newMap()
 
     protected val freeRecids = LongLists.mutable.empty()
 
-    protected var maxRecid:Long = 0;
+    protected var maxRecid: Long = 0;
 
-
-    protected fun check(value:Pair<Any?,Serializer<*>?>?):Any?{
-        return if(value===NULL_RECORD) null
-            else value?.first ?:throw DBException.RecidNotFound()
+    protected fun check(value: Pair<Any?, Serializer<*>?>?): Any? {
+        return if (value === NULL_RECORD) null
+        else value?.first ?: throw DBException.RecidNotFound()
     }
 
     override fun <K> get(recid: Long, serializer: Serializer<K>): K? {
@@ -37,24 +35,21 @@ class StoreOnHeap(
         }
     }
 
-
-
     override fun getAll(consumer: (Long, ByteArray?) -> Unit) {
         lock.lockRead {
             val recids = records.keySet().toSortedArray()
-            for(recid in recids){
+            for (recid in recids) {
                 val v = records.get(recid)!!
-                val data = if(v === NULL_RECORD) null else Serializers.serializeToByteArray(v.first!!, v.second!!)
-                consumer(recid, data )
+                val data = if (v === NULL_RECORD) null else Serializers.serializeToByteArray(v.first!!, v.second!!)
+                consumer(recid, data)
             }
         }
     }
 
-
-    protected fun preallocate2():Long{
+    protected fun preallocate2(): Long {
         val recid =
-                if(freeRecids.isEmpty) ++maxRecid
-                else freeRecids.removeAtIndex(freeRecids.size()-1)
+            if (freeRecids.isEmpty) ++maxRecid
+            else freeRecids.removeAtIndex(freeRecids.size() - 1)
 
         records.put(recid, NULL_RECORD)
         return recid
@@ -76,40 +71,43 @@ class StoreOnHeap(
 
     override fun <K> update(recid: Long, serializer: Serializer<K>, newRecord: K?) {
         lock.lockWrite {
-            if(!records.containsKey(recid))
+            if (!records.containsKey(recid))
                 throw DBException.RecidNotFound()
             val newVal =
-                    if(newRecord==null) NULL_RECORD
-                    else Pair(newRecord,serializer as Serializer<Any>)
+                if (newRecord == null) NULL_RECORD
+                else Pair(newRecord, serializer as Serializer<Any>)
             records.put(recid, newVal)
         }
     }
 
-
     override fun <K> updateAtomic(recid: Long, serializer: Serializer<K>, m: (K?) -> K?) {
         lock.lockWrite {
-            if(!records.containsKey(recid))
+            if (!records.containsKey(recid))
                 throw DBException.RecidNotFound()
             val oldRec = check(records.get(recid)) as K?
             val newRecord = m(oldRec);
 
             val newVal =
-                    if(newRecord==null) NULL_RECORD
-                    else Pair(newRecord,serializer as Serializer<Any>)
+                if (newRecord == null) NULL_RECORD
+                else Pair(newRecord, serializer as Serializer<Any>)
             records.put(recid, newVal)
         }
-
     }
 
-    override fun <K> compareAndUpdate(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?, newRecord: K?): Boolean {
+    override fun <K> compareAndUpdate(
+        recid: Long,
+        serializer: Serializer<K>,
+        expectedOldRecord: K?,
+        newRecord: K?
+    ): Boolean {
         lock.lockWrite {
             val oldRec = check(records.get(recid))
 
-            if(!serializer.equals(oldRec as K,expectedOldRecord))
+            if (!serializer.equals(oldRec as K, expectedOldRecord))
                 return false
             val newVal =
-                    if(newRecord==null)NULL_RECORD
-                    else Pair(newRecord,serializer as Serializer<Any>)
+                if (newRecord == null) NULL_RECORD
+                else Pair(newRecord, serializer as Serializer<Any>)
             records.put(recid, newVal)
             return true
         }
@@ -119,7 +117,7 @@ class StoreOnHeap(
         lock.lockWrite {
             val oldRec = check(records.get(recid))
 
-            if(!serializer.equals(oldRec as K,expectedOldRecord))
+            if (!serializer.equals(oldRec as K, expectedOldRecord))
                 return false
             records.remove(recid)
             freeRecids.add(recid)
@@ -134,16 +132,14 @@ class StoreOnHeap(
         }
     }
 
-
     override fun <E> getAndDelete(recid: Long, serializer: Serializer<E>): E? {
         lock.lockWrite {
             //TODO optimize
-            val ret = get(recid,serializer)
+            val ret = get(recid, serializer)
             delete(recid, serializer)
             return ret
         }
     }
-
 
     override fun verify() {
     }
@@ -154,12 +150,10 @@ class StoreOnHeap(
     override fun compact() {
     }
 
-
     override fun close() {
     }
 
     override fun isEmpty(): Boolean {
         return maxRecid == 0L
     }
-
 }

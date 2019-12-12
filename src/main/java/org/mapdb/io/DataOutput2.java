@@ -12,19 +12,29 @@ public interface DataOutput2 extends DataOutput {
      */
     void sizeHint(int size);
 
-    /** write int in packed form */
+    /**
+     * write int in packed form
+     */
     void writePackedInt(int value) throws IOException;
 
-    /** write long in packed form */
+    /**
+     * write long in packed form
+     */
     void writePackedLong(long value) throws IOException;
 
-    /** write recid, recids have extra parity bit to detect data corruption */
+    /**
+     * write recid, recids have extra parity bit to detect data corruption
+     */
     void writeRecid(long recid) throws IOException;
 
-    /** write recid in packed form, recids have extra parity bit to detect data corruption */
+    /**
+     * write recid in packed form, recids have extra parity bit to detect data corruption
+     */
     void writePackedRecid(long recid) throws IOException;
 
-    /** copy content of this DataOutput2 into `ByteArray` */
+    /**
+     * copy content of this DataOutput2 into `ByteArray`
+     */
     byte[] copyBytes() throws IOException;
 
 

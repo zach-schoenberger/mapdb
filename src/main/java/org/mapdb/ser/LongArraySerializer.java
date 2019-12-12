@@ -74,15 +74,15 @@ public class LongArraySerializer extends DefaultGroupSerializer<long[]> {
     public long[] nextValue(long[] value) {
         value = value.clone();
 
-        for (int i = value.length-1; ;i--) {
+        for (int i = value.length - 1; ; i--) {
             long b1 = value[i];
-            if(b1==Long.MAX_VALUE){
-                if(i==0)
+            if (b1 == Long.MAX_VALUE) {
+                if (i == 0)
                     return null;
-                value[i]=Long.MIN_VALUE;
+                value[i] = Long.MIN_VALUE;
                 continue;
             }
-            value[i] = b1+1L;
+            value[i] = b1 + 1L;
             return value;
         }
     }

@@ -69,15 +69,15 @@ public class ShortArraySerializer extends DefaultGroupSerializer<short[]> {
     public short[] nextValue(short[] value) {
         value = value.clone();
 
-        for (int i = value.length-1; ;i--) {
+        for (int i = value.length - 1; ; i--) {
             short b1 = value[i];
-            if(b1==Short.MAX_VALUE){
-                if(i==0)
+            if (b1 == Short.MAX_VALUE) {
+                if (i == 0)
                     return null;
-                value[i]=Short.MIN_VALUE;
+                value[i] = Short.MIN_VALUE;
                 continue;
             }
-            value[i] = (short) (b1+1);
+            value[i] = (short) (b1 + 1);
             return value;
         }
     }

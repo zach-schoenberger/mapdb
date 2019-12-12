@@ -2,9 +2,11 @@ package org.mapdb.io;
 
 import java.io.IOException;
 
-/** DataInput on top of {@code byte[]} */
+/**
+ * DataInput on top of {@code byte[]}
+ */
 public final class DataInput2ByteArray implements DataInput2 {
-    
+
     protected final byte[] buf;
     protected int pos;
 
@@ -17,7 +19,7 @@ public final class DataInput2ByteArray implements DataInput2 {
         this.pos = pos;
     }
 
-    public int getPos(){
+    public int getPos() {
         return pos;
     }
 
@@ -50,7 +52,7 @@ public final class DataInput2ByteArray implements DataInput2 {
 
     @Override
     public short readShort() throws IOException {
-        return (short)((buf[pos++] << 8) | (buf[pos++] & 0xff));
+        return (short) ((buf[pos++] << 8) | (buf[pos++] & 0xff));
     }
 
     @Override
@@ -65,10 +67,10 @@ public final class DataInput2ByteArray implements DataInput2 {
         int p = pos;
         final byte[] b = buf;
         final int ret =
-                ((((int)b[p++]) << 24) |
-                        (((int)b[p++] & 0xFF) << 16) |
-                        (((int)b[p++] & 0xFF) <<  8) |
-                        (((int)b[p++] & 0xFF)));
+                ((((int) b[p++]) << 24) |
+                        (((int) b[p++] & 0xFF) << 16) |
+                        (((int) b[p++] & 0xFF) << 8) |
+                        (((int) b[p++] & 0xFF)));
         pos = p;
         return ret;
     }
@@ -78,14 +80,14 @@ public final class DataInput2ByteArray implements DataInput2 {
         int p = pos;
         final byte[] b = buf;
         final long ret =
-                ((((long)b[p++]) << 56) |
-                        (((long)b[p++] & 0xFF) << 48) |
-                        (((long)b[p++] & 0xFF) << 40) |
-                        (((long)b[p++] & 0xFF) << 32) |
-                        (((long)b[p++] & 0xFF) << 24) |
-                        (((long)b[p++] & 0xFF) << 16) |
-                        (((long)b[p++] & 0xFF) <<  8) |
-                        (((long)b[p++] & 0xFF)));
+                ((((long) b[p++]) << 56) |
+                        (((long) b[p++] & 0xFF) << 48) |
+                        (((long) b[p++] & 0xFF) << 40) |
+                        (((long) b[p++] & 0xFF) << 32) |
+                        (((long) b[p++] & 0xFF) << 24) |
+                        (((long) b[p++] & 0xFF) << 16) |
+                        (((long) b[p++] & 0xFF) << 8) |
+                        (((long) b[p++] & 0xFF)));
         pos = p;
         return ret;
     }
@@ -93,12 +95,12 @@ public final class DataInput2ByteArray implements DataInput2 {
 
     @Override
     public int available() {
-        return buf.length-pos;
+        return buf.length - pos;
     }
 
     @Override
     public boolean availableMore() throws IOException {
-        return available()>0;
+        return available() > 0;
     }
 
     @Override
@@ -116,12 +118,12 @@ public final class DataInput2ByteArray implements DataInput2 {
     public void unpackLongSkip(int count) throws IOException {
         byte[] b = buf;
         int pos2 = this.pos;
-        while(count>0){
+        while (count > 0) {
 //            count -= (b[pos2++]&0x80)>>7;
             //TODO go back to packed longs, remove code bellow
             readLong();
             count--;
-            pos2+=8;
+            pos2 += 8;
         }
         this.pos = pos2;
     }

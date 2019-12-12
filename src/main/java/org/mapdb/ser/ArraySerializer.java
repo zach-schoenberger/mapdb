@@ -10,13 +10,12 @@ import java.lang.reflect.Array;
 /**
  * Serializes an object array of non-primitive objects.
  * This serializer takes two parameters:
- *
+ * <p>
  * - serializer used for each component
- *
+ * <p>
  * - componentType is class used to instantiate arrays. Generics are erased at runtime,
- *   this class controls what type of array will be instantiated.
- *   See {@link java.lang.reflect.Array#newInstance(Class, int)}
- *
+ * this class controls what type of array will be instantiated.
+ * See {@link java.lang.reflect.Array#newInstance(Class, int)}
  */
 public class ArraySerializer<T> extends DefaultGroupSerializer<T[]> {
 
@@ -28,7 +27,7 @@ public class ArraySerializer<T> extends DefaultGroupSerializer<T[]> {
     /**
      * Wraps given serializer and produces Object[] serializer.
      * To produce array with different component type, specify extra class.
-      */
+     */
     public ArraySerializer(Serializer<T> serializer) {
         this(serializer, null);
     }
@@ -40,13 +39,13 @@ public class ArraySerializer<T> extends DefaultGroupSerializer<T[]> {
      * @param serializer
      * @param componentType type of array which will be created on deserialization
      */
-    public ArraySerializer(Serializer<T> serializer, Class<T>  componentType) {
+    public ArraySerializer(Serializer<T> serializer, Class<T> componentType) {
         if (serializer == null)
             throw new NullPointerException("null serializer");
         this.serializer = serializer;
-        this.componentType = componentType!=null
+        this.componentType = componentType != null
                 ? componentType
-                : (Class<T>)Object.class;
+                : (Class<T>) Object.class;
     }
 
 //        /** used for deserialization */

@@ -19,7 +19,7 @@ public class ClassSerializer extends DefaultGroupSerializer<Class<?>> {
         this.classLoader = classLoader;
     }
 
-    public ClassSerializer(){
+    public ClassSerializer() {
         this(Thread.currentThread().getContextClassLoader());
     }
 

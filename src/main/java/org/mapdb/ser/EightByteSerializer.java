@@ -7,24 +7,25 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 
-public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]> {
+public abstract class EightByteSerializer<E> implements GroupSerializer<E, long[]> {
 
     protected abstract E unpack(long l);
+
     protected abstract long pack(E l);
 
     @Override
-    public E valueArrayGet(long[] vals, int pos){
+    public E valueArrayGet(long[] vals, int pos) {
         return unpack(((long[]) vals)[pos]);
     }
 
 
     @Override
-    public int valueArraySize(long[] vals){
-        return ((long[])vals).length;
+    public int valueArraySize(long[] vals) {
+        return ((long[]) vals).length;
     }
 
     @Override
-    public long[] valueArrayEmpty(){
+    public long[] valueArrayEmpty() {
         return new long[0];
     }
 
@@ -32,9 +33,9 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
     public long[] valueArrayPut(long[] vals, int pos, E newValue) {
 
         long[] array = (long[]) vals;
-        final long[] ret = Arrays.copyOf(array, array.length+1);
-        if(pos<array.length){
-            System.arraycopy(array, pos, ret, pos+1, array.length-pos);
+        final long[] ret = Arrays.copyOf(array, array.length + 1);
+        if (pos < array.length) {
+            System.arraycopy(array, pos, ret, pos + 1, array.length - pos);
         }
         ret[pos] = pack(newValue);
         return ret;
@@ -42,7 +43,7 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
 
     @Override
     public long[] valueArrayUpdateVal(long[] vals, int pos, E newValue) {
-        long[] vals2 = ((long[])vals).clone();
+        long[] vals2 = ((long[]) vals).clone();
         vals2[pos] = pack(newValue);
         return vals2;
     }
@@ -50,9 +51,9 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
     @Override
     public long[] valueArrayFromArray(Object[] objects) {
         long[] ret = new long[objects.length];
-        int pos=0;
+        int pos = 0;
 
-        for(Object o:objects){
+        for (Object o : objects) {
             ret[pos++] = pack((E) o);
         }
 
@@ -61,21 +62,21 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
 
     @Override
     public long[] valueArrayCopyOfRange(long[] vals, int from, int to) {
-        return Arrays.copyOfRange((long[])vals, from, to);
+        return Arrays.copyOfRange((long[]) vals, from, to);
     }
 
     @Override
     public long[] valueArrayDeleteValue(long[] vals, int pos) {
         long[] valsOrig = (long[]) vals;
-        long[] vals2 = new long[valsOrig.length-1];
-        System.arraycopy(vals,0,vals2, 0, pos-1);
-        System.arraycopy(vals, pos, vals2, pos-1, vals2.length-(pos-1));
+        long[] vals2 = new long[valsOrig.length - 1];
+        System.arraycopy(vals, 0, vals2, 0, pos - 1);
+        System.arraycopy(vals, pos, vals2, pos - 1, vals2.length - (pos - 1));
         return vals2;
     }
 
     @Override
     public void valueArraySerialize(DataOutput2 out, long[] vals) throws IOException {
-        for(long o:(long[]) vals){
+        for (long o : (long[]) vals) {
             out.writeLong(o);
         }
     }
@@ -83,7 +84,7 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
     @Override
     public long[] valueArrayDeserialize(DataInput2 in, int size) throws IOException {
         long[] ret = new long[size];
-        for(int i=0;i<size;i++){
+        for (int i = 0; i < size; i++) {
             ret[i] = in.readLong();
         }
         return ret;
@@ -91,7 +92,7 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
 
     @Override
     public E valueArrayBinaryGet(DataInput2 input, int keysLen, int pos) throws IOException {
-        input.skipBytes(pos*8);
+        input.skipBytes(pos * 8);
         return unpack(input.readLong());
     }
 
@@ -109,7 +110,7 @@ public abstract class EightByteSerializer<E> implements GroupSerializer<E,long[]
 
     @Override
     final public int valueArraySearch(long[] keys, E key, Comparator comparator) {
-        if(comparator==this)
+        if (comparator == this)
             return valueArraySearch(keys, key);
 
         long[] array = (long[]) keys;

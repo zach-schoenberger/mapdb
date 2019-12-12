@@ -8,11 +8,9 @@ object DBMaker {
         return MemoryMaker()
     }
 
-
-    class MemoryMaker(){
+    class MemoryMaker() {
         fun make(): DB {
             return DB.newOnHeapSerDB().make()
         }
-
     }
 }

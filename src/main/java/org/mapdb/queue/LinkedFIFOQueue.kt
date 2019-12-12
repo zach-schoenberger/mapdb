@@ -1,8 +1,8 @@
 package org.mapdb.queue
 
-import org.mapdb.db.DB
 import org.mapdb.DBException
 import org.mapdb.Exporter
+import org.mapdb.db.DB
 import org.mapdb.io.DataInput2
 import org.mapdb.io.DataOutput2
 import org.mapdb.ser.Serializer
@@ -10,35 +10,45 @@ import org.mapdb.ser.Serializers
 import org.mapdb.store.MutableStore
 import org.mapdb.store.Store
 import org.mapdb.store.StoreOnHeap
-import org.mapdb.util.*
-import java.util.*
+import org.mapdb.util.RecidRecord
+import org.mapdb.util.dataAssert
+import org.mapdb.util.lock
+import org.mapdb.util.lockRead
+import org.mapdb.util.lockWrite
+import java.util.AbstractQueue
+import java.util.ConcurrentModificationException
+import java.util.Queue
+import java.util.Spliterator
+import java.util.TreeMap
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import java.util.function.Consumer
-import kotlin.NoSuchElementException
-
 
 /**
  * Unbounded uncounted FIFO Queue (stack)
  */
-class LinkedFIFOQueue<E> (
-        private val store: MutableStore,
-        private val rootRecid:Long,
-        private val serializer:Serializer<E>)
-    : AbstractQueue<E>(),
-        BlockingQueue<E>, Exporter {
+class LinkedFIFOQueue<E>(
+    private val store: MutableStore,
+    private val rootRecid: Long,
+    private val serializer: Serializer<E>
+) : AbstractQueue<E>(),
+    BlockingQueue<E>, Exporter {
 
     companion object {
 
         val formatFIFO = "LinkedFIFOQueue"
-        fun createWithParams(store:MutableStore, serializer: Serializer<*>, importInput:DataInput2? = null): MutableMap<String, String> {
-            val ret = TreeMap<String,String>()
+        fun createWithParams(
+            store: MutableStore,
+            serializer: Serializer<*>,
+            importInput: DataInput2? = null
+        ): MutableMap<String, String> {
+            val ret = TreeMap<String, String>()
 
-            val rootRecid:Long = if(importInput!=null){
+            val rootRecid: Long = if (importInput != null) {
                 import(serializer, importInput, store)
-            }else{
+            } else {
                 store.put(0L, Serializers.RECID)
             }
             ret[DB.ParamNames.recid] = rootRecid.toString()
@@ -48,10 +58,11 @@ class LinkedFIFOQueue<E> (
         }
 
         /** import, return headRecid */
-        private fun import(serializer: Serializer<*>, importInput: DataInput2, store: MutableStore):Long {
+        private fun import(serializer: Serializer<*>, importInput: DataInput2, store: MutableStore): Long {
             var prevRecid = 0L
             //dummy queue
-            var q = LinkedFIFOQueue(store = StoreOnHeap(), rootRecid = 111L, serializer = serializer as Serializer<Any?>)
+            var q =
+                LinkedFIFOQueue(store = StoreOnHeap(), rootRecid = 111L, serializer = serializer as Serializer<Any?>)
             //create stack in cycle
             while (importInput.availableMore()) {
                 val e = serializer.deserialize(importInput)
@@ -62,17 +73,16 @@ class LinkedFIFOQueue<E> (
             return store.put(prevRecid, Serializers.RECID)
         }
 
-        fun <T> openWithParams(store: Store, serializer:Serializer<T>, qp: Map<String, String>): Queue<T> {
+        fun <T> openWithParams(store: Store, serializer: Serializer<T>, qp: Map<String, String>): Queue<T> {
             val rootRecid = qp[DB.ParamNames.recid]!!.toLong()
             dataAssert(qp[DB.ParamNames.format] == formatFIFO)
-            return LinkedFIFOQueue(store=store as MutableStore, rootRecid=rootRecid, serializer = serializer)
+            return LinkedFIFOQueue(store = store as MutableStore, rootRecid = rootRecid, serializer = serializer)
         }
-
     }
 
-    private data class Node<E>(val prevRecid:Long, val e:E)
+    private data class Node<E>(val prevRecid: Long, val e: E)
 
-    private val nodeSer = object:Serializer<Node<E>>{
+    private val nodeSer = object : Serializer<Node<E>> {
         override fun serialize(out: DataOutput2, k: Node<E>) {
             out.writePackedRecid(k.prevRecid)
             serializer.serialize(out, k.e)
@@ -91,7 +101,6 @@ class LinkedFIFOQueue<E> (
 
     private val notEmpty = lock.writeLock().newCondition()
 
-
     override fun offer(e: E?): Boolean {
         put(e)
         return true;
@@ -102,11 +111,10 @@ class LinkedFIFOQueue<E> (
         return true
     }
 
-
     override fun peek(): E? {
-        lock.lockRead{
+        lock.lockRead {
             val headRecid = head.get()
-            if(headRecid==0L)
+            if (headRecid == 0L)
                 return null
 
             val node = store.get(headRecid, nodeSer)!!
@@ -114,18 +122,15 @@ class LinkedFIFOQueue<E> (
         }
     }
 
-
-    private fun deleteHeadNode(headRecid:Long, node: Node<E>){
+    private fun deleteHeadNode(headRecid: Long, node: Node<E>) {
         head.set(node.prevRecid)
         store.delete(headRecid, nodeSer)
     }
 
-
-
     override fun poll(): E? {
-        lock.lockWrite{
+        lock.lockWrite {
             val headRecid = head.get()
-            if(headRecid==0L)
+            if (headRecid == 0L)
                 return null
 
             modCount++
@@ -133,14 +138,12 @@ class LinkedFIFOQueue<E> (
             deleteHeadNode(headRecid, node)
             return node.e
         }
-
     }
-
 
     override fun poll(timeout: Long, unit: TimeUnit): E? {
         lock.lockWrite {
             var headRecid = head.get()
-            if(headRecid == 0L){
+            if (headRecid == 0L) {
                 //empty, await until not empty
                 notEmpty.await(timeout, unit)
                 headRecid = head.get()
@@ -157,11 +160,11 @@ class LinkedFIFOQueue<E> (
         }
     }
 
-    fun sizeLong():Long{
+    fun sizeLong(): Long {
         lock.lockRead {
-            var count=0L
+            var count = 0L
             var recid = head.get()
-            while(recid!=0L){
+            while (recid != 0L) {
                 val node = store.get(recid, nodeSer)!!
                 count++;
                 recid = node.prevRecid
@@ -171,12 +174,11 @@ class LinkedFIFOQueue<E> (
     }
 
     override val size: Int
-        get() =  Math.min(Int.MAX_VALUE.toLong(), sizeLong()).toInt()
-
+        get() = Math.min(Int.MAX_VALUE.toLong(), sizeLong()).toInt()
 
     override fun take(): E? {
         lock.lockWrite {
-            while(true) {
+            while (true) {
                 val headRecid = head.get()
                 if (headRecid != 0L) {
                     modCount++
@@ -192,7 +194,7 @@ class LinkedFIFOQueue<E> (
     }
 
     override fun put(e: E?) {
-        if(e==null)
+        if (e == null)
             throw NullPointerException()
         lock.lockWrite {
             modCount++
@@ -204,15 +206,15 @@ class LinkedFIFOQueue<E> (
     }
 
     override fun drainTo(c: MutableCollection<in E>?): Int {
-        if(c==null)
+        if (c == null)
             throw NullPointerException()
-        if(c==this)
+        if (c == this)
             throw IllegalArgumentException()
 
         lock.lockWrite {
             var counter = 0L
             var recid = head.get()
-            while(recid!=0L){
+            while (recid != 0L) {
                 val node = store.get(recid, nodeSer)!!
                 c.add(node.e)
                 head.set(recid)
@@ -226,17 +228,17 @@ class LinkedFIFOQueue<E> (
     }
 
     override fun drainTo(c: MutableCollection<in E>?, maxElements: Int): Int {
-        if(c==null)
+        if (c == null)
             throw NullPointerException()
-        if(c==this)
+        if (c == this)
             throw IllegalArgumentException()
-        if(maxElements<=0)
+        if (maxElements <= 0)
             return 0
 
         lock.lockWrite {
             var counter = 0L
             var recid = head.get()
-            while(recid!=0L && counter<maxElements){
+            while (recid != 0L && counter < maxElements) {
                 val node = store.get(recid, nodeSer)!!
                 c.add(node.e)
                 head.set(recid)
@@ -260,11 +262,10 @@ class LinkedFIFOQueue<E> (
                 val iterLock = ReentrantLock()
 
                 var iterHead = 0L
-                var iterModCount:Long? = null
-
+                var iterModCount: Long? = null
 
                 private fun checkModCount() {
-                    if(iterModCount==null) {
+                    if (iterModCount == null) {
                         iterModCount = modCount
                         iterHead = head.get()
                     }
@@ -272,12 +273,11 @@ class LinkedFIFOQueue<E> (
                         throw ConcurrentModificationException()
                 }
 
-
                 override fun estimateSize() = Long.MAX_VALUE
 
                 override fun characteristics() = (Spliterator.CONCURRENT
-                        or Spliterator.NONNULL
-                        or Spliterator.ORDERED)
+                    or Spliterator.NONNULL
+                    or Spliterator.ORDERED)
 
                 override fun trySplit(): Spliterator<E>? = null
 
@@ -316,23 +316,22 @@ class LinkedFIFOQueue<E> (
         }
     }
 
-
     override fun iterator(): MutableIterator<E> {
         lock.lockRead {
-            return object:MutableIterator<E> {
+            return object : MutableIterator<E> {
 
-                var iterModCount:Long? = null;
+                var iterModCount: Long? = null;
                 var iterHead = 0L
 
                 //used for delete
                 var iterHeadRecid2 = 0L
                 var iterHeadRecid3 = 0L
 
-                val iterLock = ReentrantLock() //protect variables, TODO use atomic CAS or Mutex instead of lock with memory barrier
-
+                val iterLock =
+                    ReentrantLock() //protect variables, TODO use atomic CAS or Mutex instead of lock with memory barrier
 
                 private fun checkModCount() {
-                    if(iterModCount==null) {
+                    if (iterModCount == null) {
                         iterModCount = modCount
                         iterHead = head.get()
                     }
@@ -353,7 +352,7 @@ class LinkedFIFOQueue<E> (
                     iterLock.lock {
                         lock.lockRead {
                             checkModCount()
-                            if(iterHead==0L)
+                            if (iterHead == 0L)
                                 throw NoSuchElementException()
 
                             val node = store.get(iterHead, nodeSer)!!
@@ -367,18 +366,18 @@ class LinkedFIFOQueue<E> (
                 }
 
                 override fun remove() {
-                    iterLock.lock{
-                        if(iterHeadRecid2 == 0L)
+                    iterLock.lock {
+                        if (iterHeadRecid2 == 0L)
                             throw NoSuchElementException()
                         lock.lockWrite {
                             checkModCount()
 
-                            if(iterHeadRecid3==0L) {
+                            if (iterHeadRecid3 == 0L) {
                                 //deleted element is head of queue
                                 head.set(iterHead)
-                            }else{
+                            } else {
                                 //delete in middle of queue
-                                store.updateWeak(iterHeadRecid3, nodeSer){ oldNode->
+                                store.updateWeak(iterHeadRecid3, nodeSer) { oldNode ->
                                     Node(iterHead, oldNode!!.e)
                                 }
                             }
@@ -405,18 +404,16 @@ class LinkedFIFOQueue<E> (
                         }
                     }
                 }
-
             }
         }
     }
-
 
     override fun exportToDataOutput2(out: DataOutput2) {
         //TODO format header
         lock.lockRead {
             var recid = head.get()
 
-            while(recid!=0L){
+            while (recid != 0L) {
                 val node = store.get(recid, nodeSer) ?: throw DBException.DataAssert()
                 serializer.serialize(out, node.e)
                 recid = node.prevRecid

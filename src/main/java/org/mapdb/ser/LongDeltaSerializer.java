@@ -63,7 +63,7 @@ public class LongDeltaSerializer extends LongSerializer {
             from += input.readPackedLong();
 
             if (key2 <= from) {
-                input.unpackLongSkip(keysLen-pos-1);
+                input.unpackLongSkip(keysLen - pos - 1);
                 return (key2 == from) ? pos : -(pos + 1);
             }
         }

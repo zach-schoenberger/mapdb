@@ -50,7 +50,7 @@ public class CharArraySerializer extends DefaultGroupSerializer<char[]> {
     public int hashCode(char[] chars, int seed) {
         int res = 0;
         for (char c : chars) {
-            res = (res + c) * -1640531527 ;
+            res = (res + c) * -1640531527;
         }
         return res;
     }
@@ -71,15 +71,15 @@ public class CharArraySerializer extends DefaultGroupSerializer<char[]> {
     public char[] nextValue(char[] value) {
         value = value.clone();
 
-        for (int i = value.length-1; ;i--) {
+        for (int i = value.length - 1; ; i--) {
             char b1 = value[i];
-            if(b1==Character.MAX_VALUE){
-                if(i==0)
+            if (b1 == Character.MAX_VALUE) {
+                if (i == 0)
                     return null;
-                value[i]=Character.MIN_VALUE;
+                value[i] = Character.MIN_VALUE;
                 continue;
             }
-            value[i] = (char) (b1+1);
+            value[i] = (char) (b1 + 1);
             return value;
         }
     }

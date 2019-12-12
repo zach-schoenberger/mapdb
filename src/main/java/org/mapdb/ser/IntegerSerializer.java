@@ -52,7 +52,7 @@ public class IntegerSerializer extends FourByteSerializer<Integer> {
             int from = input.readInt();
 
             if (key2 <= from) {
-                input.skipBytes((keysLen-pos-1)*4);
+                input.skipBytes((keysLen - pos - 1) * 4);
                 return (key2 == from) ? pos : -(pos + 1);
             }
         }

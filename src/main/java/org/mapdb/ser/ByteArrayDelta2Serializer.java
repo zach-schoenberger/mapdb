@@ -14,13 +14,13 @@ import java.util.Comparator;
 /**
  * Created by jan on 2/29/16.
  */
-public class ByteArrayDelta2Serializer implements GroupSerializer<byte[],ByteArrayKeys> {
+public class ByteArrayDelta2Serializer implements GroupSerializer<byte[], ByteArrayKeys> {
 
 
     @Override
     public int valueArraySearch(ByteArrayKeys keys, byte[] key) {
         Object[] v = valueArrayToArray(keys);
-        return Arrays.binarySearch(v, key, (Comparator)this);
+        return Arrays.binarySearch(v, key, (Comparator) this);
     }
 
     @Override
@@ -34,21 +34,21 @@ public class ByteArrayDelta2Serializer implements GroupSerializer<byte[],ByteArr
         ByteArrayKeys keys = (ByteArrayKeys) keys2;
         int offset = 0;
         //write sizes
-        for(int o:keys.offset){
-            out.packInt(o-offset);
+        for (int o : keys.offset) {
+            out.packInt(o - offset);
             offset = o;
         }
         //$DELAY$
         //find and write common prefix
         int prefixLen = keys.commonPrefixLen();
         out.packInt(prefixLen);
-        out.write(keys.array,0,prefixLen);
+        out.write(keys.array, 0, prefixLen);
         //$DELAY$
         //write suffixes
         offset = prefixLen;
-        for(int o:keys.offset){
-            out.write(keys.array, offset, o-offset);
-            offset = o+prefixLen;
+        for (int o : keys.offset) {
+            out.write(keys.array, offset, o - offset);
+            offset = o + prefixLen;
         }
     }
 
@@ -56,38 +56,38 @@ public class ByteArrayDelta2Serializer implements GroupSerializer<byte[],ByteArr
     public ByteArrayKeys valueArrayDeserialize(DataInput2 in, int size) throws IOException {
         //read data sizes
         int[] offsets = new int[size];
-        int old=0;
-        for(int i=0;i<size;i++){
-            old+= in.unpackInt();
-            offsets[i]=old;
+        int old = 0;
+        for (int i = 0; i < size; i++) {
+            old += in.unpackInt();
+            offsets[i] = old;
         }
         byte[] bb = new byte[old];
         //$DELAY$
         //read and distribute common prefix
         int prefixLen = in.unpackInt();
         in.readFully(bb, 0, prefixLen);
-        for(int i=0; i<offsets.length-1;i++){
+        for (int i = 0; i < offsets.length - 1; i++) {
             System.arraycopy(bb, 0, bb, offsets[i], prefixLen);
         }
         //$DELAY$
         //read suffixes
         int offset = prefixLen;
-        for(int o:offsets){
-            in.readFully(bb,offset,o-offset);
-            offset = o+prefixLen;
+        for (int o : offsets) {
+            in.readFully(bb, offset, o - offset);
+            offset = o + prefixLen;
         }
 
-        return new ByteArrayKeys(offsets,bb);
+        return new ByteArrayKeys(offsets, bb);
     }
 
     @Override
     public byte[] valueArrayGet(ByteArrayKeys keys, int pos) {
-        return ((ByteArrayKeys)keys).getKey(pos);
+        return ((ByteArrayKeys) keys).getKey(pos);
     }
 
     @Override
     public int valueArraySize(ByteArrayKeys keys) {
-        return ((ByteArrayKeys)keys).length();
+        return ((ByteArrayKeys) keys).length();
     }
 
     @Override
@@ -97,7 +97,7 @@ public class ByteArrayDelta2Serializer implements GroupSerializer<byte[],ByteArr
 
     @Override
     public ByteArrayKeys valueArrayPut(ByteArrayKeys keys, int pos, byte[] newValue) {
-        return ((ByteArrayKeys)keys).putKey(pos, newValue);
+        return ((ByteArrayKeys) keys).putKey(pos, newValue);
     }
 
 
@@ -114,28 +114,28 @@ public class ByteArrayDelta2Serializer implements GroupSerializer<byte[],ByteArr
         //fill offsets
         int[] offsets = new int[keys.length];
 
-        int old=0;
-        for(int i=0;i<keys.length;i++){
+        int old = 0;
+        for (int i = 0; i < keys.length; i++) {
             byte[] b = (byte[]) keys[i];
-            old+=b.length;
-            offsets[i]=old;
+            old += b.length;
+            offsets[i] = old;
         }
         //$DELAY$
         //fill large array
         byte[] bb = new byte[old];
-        old=0;
-        for(int i=0;i<keys.length;i++){
+        old = 0;
+        for (int i = 0; i < keys.length; i++) {
             int curr = offsets[i];
             System.arraycopy(keys[i], 0, bb, old, curr - old);
-            old=curr;
+            old = curr;
         }
         //$DELAY$
-        return new ByteArrayKeys(offsets,bb);
+        return new ByteArrayKeys(offsets, bb);
     }
 
     @Override
     public ByteArrayKeys valueArrayCopyOfRange(ByteArrayKeys keys, int from, int to) {
-        return ((ByteArrayKeys)keys).copyOfRange(from,to);
+        return ((ByteArrayKeys) keys).copyOfRange(from, to);
     }
 
     @Override

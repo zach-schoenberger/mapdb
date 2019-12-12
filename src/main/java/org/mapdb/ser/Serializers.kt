@@ -8,10 +8,9 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.ObjectInputStream
 import java.io.ObjectOutputStream
-import java.util.*
+import java.util.Arrays
 
 object Serializers {
-
 
     /** Serializer for [java.lang.Integer] */
     @JvmField
@@ -20,7 +19,6 @@ object Serializers {
     /** Serializer for [java.lang.Long] */
     @JvmField
     val LONG = LongSerializer();
-
 
     /** Serializer for recids (packed 6 bytes, extra parity bit) */
     @JvmField
@@ -36,10 +34,8 @@ object Serializers {
     @JvmField
     val STRING_DELTA2 = StringDelta2Serializer()
 
-
     @JvmField
     val STRING_NOSIZE = STRING // TODO string_nosize
-
 
     /**
      * Serializer for `byte[]`, but does not add extra bytes for array size.
@@ -60,8 +56,6 @@ object Serializers {
             out.sizeHint(k.size)
             out.write(k)
         }
-
-
     }
 
     /** serialize record into ByteArray using given serializer */
@@ -70,7 +64,6 @@ object Serializers {
         serializer.serialize(out, record)
         return out.copyBytes()
     }
-
 
     /** serialize record into ByteArray using given serializer */
     fun <K> serializeToByteArrayNullable(record: K?, serializer: Serializer<K>): ByteArray? {
@@ -91,11 +84,10 @@ object Serializers {
         val aa = serializeToByteArray(a, ser)
         val bb = serializeToByteArray(b, ser)
         return Arrays.equals(aa, bb)
-
     }
 
-
-    @JvmField val JAVA = object:DefaultGroupSerializer<Any>(){
+    @JvmField
+    val JAVA = object : DefaultGroupSerializer<Any>() {
         override fun serialize(out: DataOutput2, k: Any) {
             val b = ByteArrayOutputStream()
             val b2 = ObjectOutputStream(b)
@@ -116,47 +108,61 @@ object Serializers {
         }
 
         override fun serializedType(): Class<*>? = null
-
     }
 
-    @JvmField val BYTE = ByteSerializer();
+    @JvmField
+    val BYTE = ByteSerializer();
 
     /** Serializer for `byte[]`, adds extra few bytes for array size */
-    @JvmField val BYTE_ARRAY = ByteArraySerializer();
-    @JvmField val BYTE_ARRAY_DELTA = ByteArrayDeltaSerializer();
-    @JvmField val BYTE_ARRAY_DELTA2 = ByteArrayDelta2Serializer();
+    @JvmField
+    val BYTE_ARRAY = ByteArraySerializer();
+    @JvmField
+    val BYTE_ARRAY_DELTA = ByteArrayDeltaSerializer();
+    @JvmField
+    val BYTE_ARRAY_DELTA2 = ByteArrayDelta2Serializer();
 
+    @JvmField
+    val CHAR = CharSerializer();
+    @JvmField
+    val CHAR_ARRAY = CharArraySerializer();
 
-    @JvmField val CHAR = CharSerializer();
-    @JvmField val CHAR_ARRAY = CharArraySerializer();
+    @JvmField
+    val SHORT = ShortSerializer();
+    @JvmField
+    val SHORT_ARRAY = ShortArraySerializer();
 
-    @JvmField val SHORT = ShortSerializer();
-    @JvmField val SHORT_ARRAY = ShortArraySerializer();
+    @JvmField
+    val FLOAT = FloatSerializer();
+    @JvmField
+    val FLOAT_ARRAY = FloatArraySerializer();
 
-    @JvmField val FLOAT = FloatSerializer();
-    @JvmField val FLOAT_ARRAY = FloatArraySerializer();
+    @JvmField
+    val DOUBLE = DoubleSerializer();
+    @JvmField
+    val DOUBLE_ARRAY = DoubleArraySerializer();
 
-    @JvmField val DOUBLE = DoubleSerializer();
-    @JvmField val DOUBLE_ARRAY = DoubleArraySerializer();
+    @JvmField
+    val BOOLEAN = BooleanSerializer();
 
-    @JvmField val BOOLEAN = BooleanSerializer();
+    @JvmField
+    val INT_ARRAY = IntArraySerializer();
+    @JvmField
+    val LONG_ARRAY = LongArraySerializer();
 
-    @JvmField val INT_ARRAY = IntArraySerializer();
-    @JvmField val LONG_ARRAY = LongArraySerializer();
+    @JvmField
+    val BIG_DECIMAL = BigDecimalSerializer();
+    @JvmField
+    val BIG_INTEGER = BigIntegerSerializer();
 
-
-    @JvmField val BIG_DECIMAL = BigDecimalSerializer();
-    @JvmField val BIG_INTEGER = BigIntegerSerializer();
-
-    @JvmField val CLASS = ClassSerializer();
-    @JvmField val DATE = DateSerializer();
-    @JvmField val UUID = UUIDSerializer();
-
-
+    @JvmField
+    val CLASS = ClassSerializer();
+    @JvmField
+    val DATE = DateSerializer();
+    @JvmField
+    val UUID = UUIDSerializer();
 }
 
 abstract class AbstractByteArraySerializer : Serializer<ByteArray> {
-
 
     override fun serializedType() = ByteArray::class.java
 

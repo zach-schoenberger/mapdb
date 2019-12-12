@@ -72,15 +72,15 @@ public class IntArraySerializer extends DefaultGroupSerializer<int[]> {
     public int[] nextValue(int[] value) {
         value = value.clone();
 
-        for (int i = value.length-1; ;i--) {
+        for (int i = value.length - 1; ; i--) {
             int b1 = value[i];
-            if(b1==Integer.MAX_VALUE){
-                if(i==0)
+            if (b1 == Integer.MAX_VALUE) {
+                if (i == 0)
                     return null;
-                value[i]=Integer.MIN_VALUE;
+                value[i] = Integer.MIN_VALUE;
                 continue;
             }
-            value[i] = b1+1;
+            value[i] = b1 + 1;
             return value;
         }
     }

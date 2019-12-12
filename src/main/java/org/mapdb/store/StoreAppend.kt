@@ -13,80 +13,80 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import java.util.*
+import java.util.Arrays
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 class StoreAppend(
-        val file: Path,
-        override val isThreadSafe:Boolean=true
-    ):MutableStore{
+    val file: Path,
+    override val isThreadSafe: Boolean = true
+) : MutableStore {
 
+    protected val c = FileChannel.open(
+        file,
+        StandardOpenOption.WRITE,
+        StandardOpenOption.CREATE,
+        StandardOpenOption.READ
+    )
 
-    protected val c = FileChannel.open(file,
-            StandardOpenOption.WRITE,
-            StandardOpenOption.CREATE,
-            StandardOpenOption.READ)
-
-
-    protected val lock: ReadWriteLock? = if(isThreadSafe) ReentrantReadWriteLock() else null
+    protected val lock: ReadWriteLock? = if (isThreadSafe) ReentrantReadWriteLock() else null
 
     /** key is recid, value is offset in channel */
     protected val offsets = LongLongHashMap()
 
     protected val freeRecids = LongLists.mutable.empty()
 
-    protected var maxRecid:Long = 0
+    protected var maxRecid: Long = 0
 
-    init{
+    init {
         val csize = c.size()
-        if(csize==0L) {
+        if (csize == 0L) {
             DataIO.writeFully(c, ByteBuffer.allocate(8))
-        }else{
+        } else {
             var pos = 8L
             //read record positions
-            while(pos<csize){
+            while (pos < csize) {
                 val offset = pos
                 val (recid, size) = readRecidSize(offset)
-                pos+=12 + Math.max(size,0)
+                pos += 12 + Math.max(size, 0)
 
-                offsets.put(recid,offset)
+                offsets.put(recid, offset)
                 maxRecid = Math.max(recid, maxRecid)
             }
             //restore recids
-            for(recid in 1 until maxRecid){
-                if(!offsets.containsKey(recid))
+            for (recid in 1 until maxRecid) {
+                if (!offsets.containsKey(recid))
                     freeRecids.add(recid)
             }
         }
     }
 
-    protected fun readRecidSize(offset:Long):Pair<Long,Int>{
+    protected fun readRecidSize(offset: Long): Pair<Long, Int> {
         val b = ByteBuffer.allocate(12)
         DataIO.readFully(c, b, offset)
-        val recid = DataIO.getLong(b.array(),0)
-        val size = DataIO.getInt(b.array(),8)
+        val recid = DataIO.getLong(b.array(), 0)
+        val size = DataIO.getInt(b.array(), 8)
         return Pair(recid, size)
     }
 
-    protected fun readRecord(offset:Long, size:Int):ByteArray{
+    protected fun readRecord(offset: Long, size: Int): ByteArray {
         val b = ByteBuffer.allocate(size)
-        DataIO.readFully(c,b, offset)
+        DataIO.readFully(c, b, offset)
         return b.array()
     }
 
-    protected fun append(recid:Long, serialized:ByteArray?):Long{
+    protected fun append(recid: Long, serialized: ByteArray?): Long {
         val offset = c.position()
 
         appendRecidSize(recid, serialized?.size ?: -1)
 
-        if(serialized!=null) {
+        if (serialized != null) {
             val b2 = ByteBuffer.wrap(serialized)
             DataIO.writeFully(c, b2)
             //TODO merge into single write
         }
 
-        offsets.put(recid, if(serialized==null) 0L else offset)
+        offsets.put(recid, if (serialized == null) 0L else offset)
         return offset
     }
 
@@ -94,10 +94,9 @@ class StoreAppend(
         //write size and data
         val b1 = ByteBuffer.allocate(12)
         DataIO.putLong(b1.array(), 0, recid)
-        DataIO.putInt(b1.array(), 8, size )
+        DataIO.putInt(b1.array(), 8, size)
         DataIO.writeFully(c, b1)
     }
-
 
     override fun <K> get(recid: Long, serializer: Serializer<K>): K? {
         lock.lockRead {
@@ -121,40 +120,37 @@ class StoreAppend(
         return serializer.deserialize(input)
     }
 
-
     override fun getAll(consumer: (Long, ByteArray?) -> Unit) {
         lock.lockRead {
             val recids = offsets.keySet().toSortedArray()
-            for(recid in recids){
+            for (recid in recids) {
                 val offset = offsets.getOrThrow(recid)
-                if(offset==0L){
+                if (offset == 0L) {
                     consumer(recid, null)
                     continue
                 }
 
-                val (recid2,size) = readRecidSize(offset)
+                val (recid2, size) = readRecidSize(offset)
                 assert(recid == recid2)
 
-                val b = readRecord(offset+12, size)
+                val b = readRecord(offset + 12, size)
                 consumer(recid, b)
             }
         }
     }
 
-
     override fun preallocate(): Long {
-       lock.lockWrite {
-        val recid = preallocate2()
-        append(recid, null)
-        return recid
-       }
+        lock.lockWrite {
+            val recid = preallocate2()
+            append(recid, null)
+            return recid
+        }
     }
 
-
-    protected fun preallocate2():Long{
+    protected fun preallocate2(): Long {
         val recid =
-                if(freeRecids.isEmpty) ++maxRecid
-                else freeRecids.removeAtIndex(freeRecids.size()-1)
+            if (freeRecids.isEmpty) ++maxRecid
+            else freeRecids.removeAtIndex(freeRecids.size() - 1)
 
         return recid
     }
@@ -172,7 +168,7 @@ class StoreAppend(
         val serialized = Serializers.serializeToByteArrayNullable(newRecord, serializer)
 
         lock.lockWrite {
-            if(!offsets.containsKey(recid))
+            if (!offsets.containsKey(recid))
                 throw DBException.RecidNotFound()
             append(recid, serialized)
         }
@@ -187,33 +183,37 @@ class StoreAppend(
         }
     }
 
-    override fun <K> compareAndUpdate(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?, newRecord: K?): Boolean {
+    override fun <K> compareAndUpdate(
+        recid: Long,
+        serializer: Serializer<K>,
+        expectedOldRecord: K?,
+        newRecord: K?
+    ): Boolean {
         val expected = Serializers.serializeToByteArrayNullable(expectedOldRecord, serializer)
         val newRecord = Serializers.serializeToByteArrayNullable(newRecord, serializer)
 
         lock.lockWrite {
             val offset = offsets.getIfAbsent(recid, Long.MIN_VALUE)
-            if(offset==Long.MIN_VALUE)
+            if (offset == Long.MIN_VALUE)
                 throw DBException.RecidNotFound()
 
-
             //null record
-            if(offset==0L){
-                if(expected!=null)
+            if (offset == 0L) {
+                if (expected != null)
                     return false
                 append(recid, newRecord)
                 return true
             }
 
-            if(expected==null)
+            if (expected == null)
                 return false
 
-            val (recid2,size) = readRecidSize(offset)
+            val (recid2, size) = readRecidSize(offset)
             assert(recid == recid2)
 
-            val old = readRecord(offset+12, size)
+            val old = readRecord(offset + 12, size)
 
-            if(!Arrays.equals(expected, old))
+            if (!Arrays.equals(expected, old))
                 return false
 
             append(recid, newRecord)
@@ -226,32 +226,31 @@ class StoreAppend(
 
         lock.lockWrite {
             val offset = offsets.getIfAbsent(recid, Long.MIN_VALUE)
-            if(offset==Long.MIN_VALUE)
+            if (offset == Long.MIN_VALUE)
                 throw DBException.RecidNotFound()
 
-
             //null record
-            if(offset==0L){
-                if(expected!=null)
+            if (offset == 0L) {
+                if (expected != null)
                     return false
-                appendRecidSize(recid,-2)
+                appendRecidSize(recid, -2)
                 offsets.removeKey(recid)
                 freeRecids.add(recid)
                 return true
             }
 
-            if(expected==null)
+            if (expected == null)
                 return false
 
-            val (recid2,size) = readRecidSize(offset)
+            val (recid2, size) = readRecidSize(offset)
             assert(recid == recid2)
 
-            val old = readRecord(offset+12, size)
+            val old = readRecord(offset + 12, size)
 
-            if(!Arrays.equals(expected, old))
+            if (!Arrays.equals(expected, old))
                 return false
 
-            appendRecidSize(recid,-2)
+            appendRecidSize(recid, -2)
             offsets.removeKey(recid)
             freeRecids.add(recid)
             return true
@@ -260,9 +259,9 @@ class StoreAppend(
 
     override fun <K> delete(recid: Long, serializer: Serializer<K>) {
         lock.lockWrite {
-            if(!offsets.containsKey(recid))
+            if (!offsets.containsKey(recid))
                 throw DBException.RecidNotFound()
-            appendRecidSize(recid,-2)
+            appendRecidSize(recid, -2)
             offsets.removeKey(recid)
             freeRecids.add(recid)
         }
@@ -271,16 +270,16 @@ class StoreAppend(
     override fun <E> getAndDelete(recid: Long, serializer: Serializer<E>): E? {
         lock.lockWrite {
             //TODO optimize
-            val ret = get(recid,serializer)
+            val ret = get(recid, serializer)
             delete(recid, serializer)
             return ret
         }
     }
 
-
     override fun close() {
         c.close()
     }
+
     override fun verify() {
     }
 
@@ -289,11 +288,9 @@ class StoreAppend(
     }
 
     override fun compact() {
-
     }
 
     override fun isEmpty(): Boolean {
         return maxRecid == 0L
     }
-
 }

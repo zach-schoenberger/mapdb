@@ -99,7 +99,7 @@ import java.nio.ByteBuffer;
  * <li>Back-reference: copy previous data to output stream, with specified
  * offset from location and length. The length is at least 3 bytes.</li>
  * </ul>
- *<p>
+ * <p>
  * The first byte of the compressed stream is the control byte. For literal
  * runs, the highest three bits of the control byte are not set, the the lower
  * bits are the literal run length, and the next bytes are data to copy directly
@@ -110,7 +110,7 @@ import java.nio.ByteBuffer;
  * back-reference.
  * </p>
  */
-final class CompressLZF{
+final class CompressLZF {
 
     /**
      * The number of entries in the hash table. The size is a trade-off between
@@ -183,11 +183,11 @@ final class CompressLZF{
             //       && (((in[ref] & 255) << 8) | (in[ref + 1] & 255)) ==
             //           ((future >> 8) & 0xffff)) {
             if (ref < inPos
-                        && ref > 0
-                        && (off = inPos - ref - 1) < MAX_OFF
-                        && in[ref + 2] == p2
-                        && in[ref + 1] == (byte) (future >> 8)
-                        && in[ref] == (byte) (future >> 16)) {
+                    && ref > 0
+                    && (off = inPos - ref - 1) < MAX_OFF
+                    && in[ref + 2] == p2
+                    && in[ref + 1] == (byte) (future >> 8)
+                    && in[ref] == (byte) (future >> 16)) {
                 // match
                 int maxLen = inLen - inPos - 2;
                 if (maxLen > MAX_REF) {
@@ -261,7 +261,7 @@ final class CompressLZF{
 
     public void expand(DataInput in, byte[] out, int outPos, int outLen) throws IOException {
         // if ((inPos | outPos | outLen) < 0) {
-        if(CC.ASSERT && ! (outLen>=0))
+        if (CC.ASSERT && !(outLen >= 0))
             throw new AssertionError();
         do {
             int ctrl = in.readByte() & 255;
@@ -269,7 +269,7 @@ final class CompressLZF{
                 // literal run of length = ctrl + 1,
                 ctrl++;
                 // copy to output and move forward this many bytes
-                in.readFully(out,outPos,ctrl);
+                in.readFully(out, outPos, ctrl);
                 outPos += ctrl;
             } else {
                 // back reference
@@ -306,8 +306,8 @@ final class CompressLZF{
 
 
     public void expand(ByteBuffer in, int inPos, byte[] out, int outPos, int outLen) {
-        ByteBuffer in2=null;
-        if(CC.ASSERT && ! (outLen>=0))
+        ByteBuffer in2 = null;
+        if (CC.ASSERT && !(outLen >= 0))
             throw new AssertionError();
         do {
             int ctrl = in.get(inPos++) & 255;
@@ -316,9 +316,9 @@ final class CompressLZF{
                 ctrl++;
                 // copy to output and move forward this many bytes
                 //System.arraycopy(in, inPos, out, outPos, ctrl);
-                if(in2==null) in2 = in.duplicate();
+                if (in2 == null) in2 = in.duplicate();
                 in2.position(inPos);
-                in2.get(out,outPos,ctrl);
+                in2.get(out, outPos, ctrl);
                 outPos += ctrl;
                 inPos += ctrl;
             } else {
@@ -400,7 +400,6 @@ final class CompressLZF{
             }
         } while (outPos < outLen);
     }
-
 
 
 }

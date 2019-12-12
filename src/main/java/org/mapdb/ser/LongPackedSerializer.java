@@ -23,7 +23,7 @@ public class LongPackedSerializer extends LongSerializer {
 
     @Override
     public void valueArraySerialize(DataOutput2 out, long[] vals) throws IOException {
-        for (long o : (long[])vals) {
+        for (long o : (long[]) vals) {
             out.writePackedLong(o);
         }
     }
@@ -64,7 +64,6 @@ public class LongPackedSerializer extends LongSerializer {
         input.unpackLongSkip(pos);
         return input.readPackedLong();
     }
-
 
 
 }

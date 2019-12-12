@@ -18,7 +18,7 @@ public final class DataInputToStream extends InputStream {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        in.readFully(b,off,len);
+        in.readFully(b, off, len);
         return len;
     }
 
@@ -31,7 +31,7 @@ public final class DataInputToStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        if(in instanceof Closeable)
+        if (in instanceof Closeable)
             ((Closeable) in).close();
     }
 

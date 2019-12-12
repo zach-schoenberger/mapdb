@@ -43,7 +43,7 @@ public class DateSerializer extends EightByteSerializer<Date> {
     final public int valueArraySearch(long[] keys, Date key) {
         //TODO valueArraySearch versus comparator test
         long time = key.getTime();
-        return Arrays.binarySearch((long[])keys, time);
+        return Arrays.binarySearch((long[]) keys, time);
     }
 
 

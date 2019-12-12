@@ -42,7 +42,7 @@ public class LongSerializer extends EightByteSerializer<Long> {
 
     @Override
     public int valueArraySearch(long[] keys, Long key) {
-        return Arrays.binarySearch((long[])keys, key);
+        return Arrays.binarySearch((long[]) keys, key);
     }
 
 
@@ -55,7 +55,7 @@ public class LongSerializer extends EightByteSerializer<Long> {
             long from = input.readLong();
 
             if (key2 <= from) {
-                input.skipBytes((keysLen-pos-1)*8);
+                input.skipBytes((keysLen - pos - 1) * 8);
                 return (key2 == from) ? pos : -(pos + 1);
             }
         }

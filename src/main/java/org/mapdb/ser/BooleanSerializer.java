@@ -58,7 +58,7 @@ public class BooleanSerializer implements GroupSerializer<Boolean, boolean[]> {
     }
 
     @Override
-    public boolean[]  valueArrayDeserialize(DataInput2 in, int size) throws IOException {
+    public boolean[] valueArrayDeserialize(DataInput2 in, int size) throws IOException {
         boolean[] ret = new boolean[size];
         for (int i = 0; i < size; i++) {
             ret[i] = in.readBoolean();
@@ -82,7 +82,7 @@ public class BooleanSerializer implements GroupSerializer<Boolean, boolean[]> {
     }
 
     @Override
-    public boolean[]  valueArrayPut(boolean[] vals, int pos, Boolean newValue) {
+    public boolean[] valueArrayPut(boolean[] vals, int pos, Boolean newValue) {
         boolean[] array = (boolean[]) vals;
         final boolean[] ret = Arrays.copyOf(array, array.length + 1);
         if (pos < array.length) {
@@ -94,7 +94,7 @@ public class BooleanSerializer implements GroupSerializer<Boolean, boolean[]> {
     }
 
     @Override
-    public boolean[]  valueArrayUpdateVal(boolean[] vals, int pos, Boolean newValue) {
+    public boolean[] valueArrayUpdateVal(boolean[] vals, int pos, Boolean newValue) {
         boolean[] vals2 = ((boolean[]) vals).clone();
         vals2[pos] = newValue;
         return vals2;
@@ -102,7 +102,7 @@ public class BooleanSerializer implements GroupSerializer<Boolean, boolean[]> {
     }
 
     @Override
-    public boolean[]  valueArrayFromArray(Object[] objects) {
+    public boolean[] valueArrayFromArray(Object[] objects) {
         boolean[] ret = new boolean[objects.length];
         for (int i = 0; i < ret.length; i++) {
             ret[i] = (Boolean) objects[i];
@@ -111,12 +111,12 @@ public class BooleanSerializer implements GroupSerializer<Boolean, boolean[]> {
     }
 
     @Override
-    public boolean[]  valueArrayCopyOfRange(boolean[] vals, int from, int to) {
+    public boolean[] valueArrayCopyOfRange(boolean[] vals, int from, int to) {
         return Arrays.copyOfRange((boolean[]) vals, from, to);
     }
 
     @Override
-    public boolean[]  valueArrayDeleteValue(boolean[] vals, int pos) {
+    public boolean[] valueArrayDeleteValue(boolean[] vals, int pos) {
         boolean[] valsOrig = (boolean[]) vals;
         boolean[] vals2 = new boolean[valsOrig.length - 1];
         System.arraycopy(vals, 0, vals2, 0, pos - 1);

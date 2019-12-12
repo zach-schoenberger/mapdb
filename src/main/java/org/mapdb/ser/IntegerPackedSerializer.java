@@ -22,7 +22,7 @@ public class IntegerPackedSerializer extends IntegerSerializer {
 
     @Override
     public void valueArraySerialize(DataOutput2 out, int[] vals) throws IOException {
-        for (int o : (int[])vals) {
+        for (int o : (int[]) vals) {
             out.packInt(o); //TODO packIntBigger()
         }
     }
@@ -49,7 +49,7 @@ public class IntegerPackedSerializer extends IntegerSerializer {
             int from = input.unpackInt();
 
             if (key2 <= from) {
-                input.unpackLongSkip(keysLen-pos-1);
+                input.unpackLongSkip(keysLen - pos - 1);
                 return (key2 == from) ? pos : -(pos + 1);
             }
         }

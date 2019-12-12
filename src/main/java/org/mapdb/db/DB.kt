@@ -1,30 +1,32 @@
 package org.mapdb.db
 
 import com.google.common.cache.CacheBuilder
-import org.checkerframework.checker.units.qual.K
 import org.mapdb.DBException
 import org.mapdb.list.LinkedList
 import org.mapdb.ser.Serializer
 import org.mapdb.ser.Serializers
-import org.mapdb.store.*
+import org.mapdb.store.MutableStore
+import org.mapdb.store.Recids
+import org.mapdb.store.StoreAppend
+import org.mapdb.store.StoreOnHeap
+import org.mapdb.store.StoreOnHeapSer
 import org.mapdb.util.dataAssert
 import org.mapdb.util.getBooleanOrDefault
 import java.io.Closeable
 import java.io.File
 import java.nio.file.Path
-import java.util.*
+import java.util.TreeMap
 import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentNavigableMap
 import java.util.concurrent.ConcurrentSkipListMap
 
 /** Main class for accessing MapDB */
-class DB(val store: MutableStore): Closeable {
+class DB(val store: MutableStore) : Closeable {
 
     companion object {
 
         private val TRUE = "true"
         private val FALSE = "false"
-
 
         @JvmStatic
         fun newOnHeapDB(): Maker {
@@ -39,7 +41,6 @@ class DB(val store: MutableStore): Closeable {
             maker.props[ConfigKey.storeType.name] = ConfigVal.onHeapSer.name
             return maker
         }
-
     }
 
     private enum class ConfigKey {
@@ -65,11 +66,11 @@ class DB(val store: MutableStore): Closeable {
             return this
         }
 
-
         fun txBlock(): Maker {
             //TODO transactions
             return this
         }
+
         fun make(): DB {
 
             val threadSafe = props.getBooleanOrDefault(ConfigKey.threadSafe.name, true)
@@ -102,7 +103,6 @@ class DB(val store: MutableStore): Closeable {
             return this
         }
 
-
         companion object {
             fun appendFile(f: File): Maker {
                 val maker = Maker()
@@ -117,28 +117,24 @@ class DB(val store: MutableStore): Closeable {
                 return maker
             }
 
-
             fun heapSer(): Maker {
                 val maker = Maker()
                 maker.props[ConfigKey.storeType.name] = ConfigVal.onHeapSer.name
                 return maker
             }
-
-
         }
     }
 
     class LinkedListMaker<T>(
-            private val db: DB,
-            private val serializer: Serializer<T>) {
+        private val db: DB,
+        private val serializer: Serializer<T>
+    ) {
         val props = TreeMap<String, String>()
 
         fun make(): LinkedList<T> {
             return LinkedList(store = db.store as MutableStore, serializer = serializer)
         }
-
     }
-
 
     fun <E> linkedList(name: String, serializer: Serializer<E>) = LinkedListMaker(db = this, serializer = serializer)
 
@@ -146,16 +142,14 @@ class DB(val store: MutableStore): Closeable {
         store.close();
     }
 
-
     //TODO make private
     internal val instances = CacheBuilder.newBuilder().weakValues().build<String, Any>()
 
     private val paramSerializer = Serializers.JAVA as Serializer<Map<String, Map<String, String>>>
 
-
     fun paramsLoad(): Map<String, Map<String, String>> =
-            store.get(Recids.RECID_NAME_PARAMS, paramSerializer)
-                    ?: TreeMap()
+        store.get(Recids.RECID_NAME_PARAMS, paramSerializer)
+            ?: TreeMap()
 
     fun paramsSave(params: Map<String, Map<String, String>>) {
         for ((k, v) in params) {
@@ -176,9 +170,10 @@ class DB(val store: MutableStore): Closeable {
         val format = "format"
     }
 
-    val serializerNames: Map<String, Serializer<*>> = Serializers::class.java.fields.filter { it.name != "INSTANCE" }.map { f ->
-        Pair("Serializers." + f.name, f.get(null) as Serializer<*>)
-    }.toMap()
+    val serializerNames: Map<String, Serializer<*>> =
+        Serializers::class.java.fields.filter { it.name != "INSTANCE" }.map { f ->
+            Pair("Serializers." + f.name, f.get(null) as Serializer<*>)
+        }.toMap()
     val serializerInstances: Map<Serializer<*>, String> = serializerNames.map { p -> Pair(p.value, p.key) }.toMap()
 
     fun serializerName(serializer: Serializer<*>): String? {
@@ -190,20 +185,18 @@ class DB(val store: MutableStore): Closeable {
     }
 
     fun <E> serializerForClass(clazz: Class<E>): Serializer<E> {
-        val s = when(clazz){
-            String::class.java-> Serializers.STRING
+        val s = when (clazz) {
+            String::class.java -> Serializers.STRING
             ByteArray::class.java -> Serializers.BYTE_ARRAY
             java.lang.Integer::class.java -> Serializers.INTEGER
             java.lang.Long::class.java -> Serializers.LONG
-            else -> throw DBException.WrongConfig("No registered serializer for class: "+clazz.name)
+            else -> throw DBException.WrongConfig("No registered serializer for class: " + clazz.name)
             //TODO config for fallback (default serialzier), or register 'catch all' serializer for java.lang.Object
         }
         return s as Serializer<E>
     }
 
-
-
-    fun tx(o: Runnable){
+    fun tx(o: Runnable) {
         //TODO tx
         o.run()
     }
@@ -215,14 +208,18 @@ class DB(val store: MutableStore): Closeable {
         return o.call()
     }
 
-    fun <K,V> treeMap(test: String, keySer:Serializer<K>,
-                      valueSer:Serializer<V>): NavigableMapMaker<K,V> {
-        return NavigableMapMaker<K,V>()
+    fun <K, V> treeMap(
+        test: String, keySer: Serializer<K>,
+        valueSer: Serializer<V>
+    ): NavigableMapMaker<K, V> {
+        return NavigableMapMaker<K, V>(this, keySer, valueSer)
     }
 
-
-    class NavigableMapMaker<K,V> {
-        fun make():ConcurrentNavigableMap<K,V> = ConcurrentSkipListMap() //TODO mock treemap
+    class NavigableMapMaker<K, V>(
+        private val db: DB,
+        private val keySerializer: Serializer<K>,
+        private val valueSerializer: Serializer<V>
+    ) {
+        fun make(): ConcurrentNavigableMap<K, V> = ConcurrentSkipListMap() //TODO mock treemap
     }
-
 }

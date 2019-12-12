@@ -52,7 +52,7 @@ public class RecidSerializer extends EightByteSerializer<Long> {
 
     @Override
     public int valueArraySearch(long[] keys, Long key) {
-        return Arrays.binarySearch((long[])keys, key);
+        return Arrays.binarySearch((long[]) keys, key);
     }
 
     @Override
@@ -74,6 +74,6 @@ public class RecidSerializer extends EightByteSerializer<Long> {
     @Override
     public Long valueArrayBinaryGet(DataInput2 input, int keysLen, int pos) throws IOException {
         input.unpackLongSkip(pos);
-        return deserialize(input,-1);
+        return deserialize(input, -1);
     }
 }

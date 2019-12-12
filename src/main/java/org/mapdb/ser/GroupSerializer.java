@@ -9,7 +9,7 @@ import java.util.Comparator;
 /**
  * Created by jan on 2/29/16.
  */
-public interface GroupSerializer<A,G> extends Serializer<A> {
+public interface GroupSerializer<A, G> extends Serializer<A> {
 
     default A valueArrayBinaryGet(DataInput2 input, int keysLen, int pos) throws IOException {
         G keys = valueArrayDeserialize(input, keysLen);
@@ -20,7 +20,6 @@ public interface GroupSerializer<A,G> extends Serializer<A> {
 //        }
 //        return a;
     }
-
 
 
     default int valueArrayBinarySearch(A key, DataInput2 input, int keysLen, Comparator comparator) throws IOException {
@@ -63,17 +62,19 @@ public interface GroupSerializer<A,G> extends Serializer<A> {
 
     G valueArrayDeleteValue(G vals, int pos);
 
-    default Object[] valueArrayToArray(G vals){
+    default Object[] valueArrayToArray(G vals) {
         Object[] ret = new Object[valueArraySize(vals)];
-        for(int i=0;i<ret.length;i++){
-            ret[i] = valueArrayGet(vals,i);
+        for (int i = 0; i < ret.length; i++) {
+            ret[i] = valueArrayGet(vals, i);
         }
         return ret;
     }
 
 
-    /** returns value+1, or null if there is no bigger value. */
-    default A nextValue(A value){
+    /**
+     * returns value+1, or null if there is no bigger value.
+     */
+    default A nextValue(A value) {
         throw new UnsupportedOperationException("Next Value not supported");
     }
 
