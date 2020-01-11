@@ -62,7 +62,7 @@ object GenRecords {
                                 store.updateAndGet(recid, ser, {v:${t.valType()}?-> v!!+i})!!
 
                             fun getAndAdd(i:${t.type}):${t.valType()} = 
-                                store.getAndUpdateAtomic(recid, ser, {v:${t.valType()}?-> v!!+i})!!
+                                store.getAndUpdate(recid, ser, {v:${t.valType()}?-> v!!+i})!!
 
                             fun getAndDecrement():${t.valType()} = getAndAdd(-1)
 

@@ -1,7 +1,6 @@
 package org.mapdb.store
 
-import org.eclipse.collections.impl.factory.primitive.LongLists
-import org.eclipse.collections.impl.map.mutable.primitive.LongLongHashMap
+import it.unimi.dsi.fastutil.longs.Long2LongRBTreeMap
 import org.mapdb.DBException
 import org.mapdb.io.DataIO
 import org.mapdb.io.DataInput2ByteArray
@@ -9,11 +8,13 @@ import org.mapdb.ser.Serializer
 import org.mapdb.ser.Serializers
 import org.mapdb.util.lockRead
 import org.mapdb.util.lockWrite
+import java.io.EOFException
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
-import java.util.Arrays
+import java.util.UUID
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
@@ -22,7 +23,7 @@ class StoreAppend(
     override val isThreadSafe: Boolean = true
 ) : MutableStore {
 
-    protected val c = FileChannel.open(
+    private var c = FileChannel.open(
         file,
         StandardOpenOption.WRITE,
         StandardOpenOption.CREATE,
@@ -32,11 +33,9 @@ class StoreAppend(
     protected val lock: ReadWriteLock? = if (isThreadSafe) ReentrantReadWriteLock() else null
 
     /** key is recid, value is offset in channel */
-    protected val offsets = LongLongHashMap()
-
-    protected val freeRecids = LongLists.mutable.empty()
-
-    protected var maxRecid: Long = 0
+    // protected val offsets = LongLongHashMap()
+    protected var offsets = Long2LongRBTreeMap()
+    protected var maxRecid: Long = 1L
 
     init {
         val csize = c.size()
@@ -48,15 +47,12 @@ class StoreAppend(
             while (pos < csize) {
                 val offset = pos
                 val (recid, size) = readRecidSize(offset)
-                pos += 12 + Math.max(size, 0)
+                pos += 12 + size.coerceAtLeast(0)
 
-                offsets.put(recid, offset)
-                maxRecid = Math.max(recid, maxRecid)
-            }
-            //restore recids
-            for (recid in 1 until maxRecid) {
-                if (!offsets.containsKey(recid))
-                    freeRecids.add(recid)
+                if (recid != TOMBSTONE_RECID) {
+                    offsets[recid] = offset
+                    maxRecid = recid.coerceAtLeast(maxRecid)
+                }
             }
         }
     }
@@ -75,42 +71,38 @@ class StoreAppend(
         return b.array()
     }
 
-    protected fun append(recid: Long, serialized: ByteArray?): Long {
+    private fun append(recid: Long, serialized: ByteArray): Long {
         val offset = c.position()
-
-        appendRecidSize(recid, serialized?.size ?: -1)
-
-        if (serialized != null) {
-            val b2 = ByteBuffer.wrap(serialized)
-            DataIO.writeFully(c, b2)
-            //TODO merge into single write
-        }
-
-        offsets.put(recid, if (serialized == null) 0L else offset)
+        appendRecord(c, recid, serialized)
+        offsets[recid] = offset
         return offset
     }
 
-    private fun appendRecidSize(recid: Long, size: Int) {
-        //write size and data
-        val b1 = ByteBuffer.allocate(12)
-        DataIO.putLong(b1.array(), 0, recid)
-        DataIO.putInt(b1.array(), 8, size)
+    private fun appendRecord(c: FileChannel, recid: Long, serialized: ByteArray) {
+        val b1 = ByteArray(12 + serialized.size)
+        DataIO.putLong(b1, 0, recid)
+        DataIO.putInt(b1, 8, serialized.size)
+        serialized.copyInto(b1, 12)
         DataIO.writeFully(c, b1)
     }
 
-    override fun <K> get(recid: Long, serializer: Serializer<K>): K? {
+    private fun tombStoneRecord(c: FileChannel, offset: Long) {
+        val b1 = ByteArray(8)
+        DataIO.putLong(b1, 0, TOMBSTONE_RECID)
+        c.write(ByteBuffer.wrap(b1), offset)
+    }
+
+    override fun <K> get(recid: Long, serializer: Serializer<K>): K {
         lock.lockRead {
             return getNoLock(recid, serializer)
         }
     }
 
-    private fun <K> getNoLock(recid: Long, serializer: Serializer<K>): K? {
-        val offset = offsets.getIfAbsent(recid, Long.MIN_VALUE)
-        if (offset == Long.MIN_VALUE)
+    private fun <K> getNoLock(recid: Long, serializer: Serializer<K>): K {
+        val offset = offsets.getOrDefault(recid, Long.MIN_VALUE)
+        if (offset == Long.MIN_VALUE) {
             throw DBException.RecidNotFound()
-
-        if (offset == 0L)
-            return null
+        }
 
         val (recid2, size) = readRecidSize(offset)
         assert(recid == recid2)
@@ -122,12 +114,10 @@ class StoreAppend(
 
     override fun getAll(consumer: (Long, ByteArray?) -> Unit) {
         lock.lockRead {
-            val recids = offsets.keySet().toSortedArray()
-            for (recid in recids) {
-                val offset = offsets.getOrThrow(recid)
+            offsets.long2LongEntrySet().forEach { (recid, offset) ->
                 if (offset == 0L) {
                     consumer(recid, null)
-                    continue
+                    return@forEach
                 }
 
                 val (recid2, size) = readRecidSize(offset)
@@ -139,24 +129,31 @@ class StoreAppend(
         }
     }
 
+    override fun <K> getAndUpdate(recid: Long, serializer: Serializer<K>, newRecord: K): K {
+        lock.lockWrite {
+            return super.getAndUpdate(recid, serializer, newRecord)
+        }
+    }
+
+    override fun <K> updateAndGet(recid: Long, serializer: Serializer<K>, m: (K) -> K): K {
+        lock.lockWrite {
+            return super.updateAndGet(recid, serializer, m)
+        }
+    }
+
     override fun preallocate(): Long {
         lock.lockWrite {
-            val recid = preallocate2()
-            append(recid, null)
-            return recid
+            return preallocate2()
         }
     }
 
     protected fun preallocate2(): Long {
-        val recid =
-            if (freeRecids.isEmpty) ++maxRecid
-            else freeRecids.removeAtIndex(freeRecids.size() - 1)
-
-        return recid
+        return maxRecid++
     }
 
-    override fun <K> put(record: K?, serializer: Serializer<K>): Long {
-        val serialized = Serializers.serializeToByteArrayNullable(record, serializer)
+    override fun <K> put(record: K, serializer: Serializer<K>): Long {
+        val serialized = Serializers.serializeToByteArrayNullable(record, serializer) ?: throw DBException.DataNull()
+
         lock.lockWrite {
             val recid = preallocate2()
             append(recid, serialized)
@@ -164,21 +161,27 @@ class StoreAppend(
         }
     }
 
-    override fun <K> update(recid: Long, serializer: Serializer<K>, newRecord: K?) {
-        val serialized = Serializers.serializeToByteArrayNullable(newRecord, serializer)
+    override fun <K> update(recid: Long, serializer: Serializer<K>, newRecord: K) {
+        val serialized = Serializers.serializeToByteArrayNullable(newRecord, serializer) ?: throw DBException.DataNull()
 
         lock.lockWrite {
             if (!offsets.containsKey(recid))
                 throw DBException.RecidNotFound()
+
+            val offset = offsets[recid]
+            tombStoneRecord(c, offset)
             append(recid, serialized)
         }
     }
 
-    override fun <K> updateAtomic(recid: Long, serializer: Serializer<K>, m: (K?) -> K?) {
+    override fun <K> update(recid: Long, serializer: Serializer<K>, m: (K) -> K) {
         lock.lockWrite {
-            val oldRec = getNoLock(recid, serializer)!!
+            val oldRec = getNoLock(recid, serializer)
             val newRec = m(oldRec)
-            val serialized = Serializers.serializeToByteArrayNullable(newRec, serializer)
+            val serialized =
+                Serializers.serializeToByteArrayNullable(newRec, serializer) ?: throw DBException.DataNull()
+            val offset = offsets[recid]
+            tombStoneRecord(c, offset)
             append(recid, serialized)
         }
     }
@@ -186,73 +189,47 @@ class StoreAppend(
     override fun <K> compareAndUpdate(
         recid: Long,
         serializer: Serializer<K>,
-        expectedOldRecord: K?,
-        newRecord: K?
+        expectedOldRecord: K,
+        newRecord: K
     ): Boolean {
-        val expected = Serializers.serializeToByteArrayNullable(expectedOldRecord, serializer)
-        val newRecord = Serializers.serializeToByteArrayNullable(newRecord, serializer)
+        val expectedBytes =
+            Serializers.serializeToByteArrayNullable(expectedOldRecord, serializer) ?: throw DBException.DataNull()
+        val newRecordBytes =
+            Serializers.serializeToByteArrayNullable(newRecord, serializer) ?: throw DBException.DataNull()
 
-        lock.lockWrite {
-            val offset = offsets.getIfAbsent(recid, Long.MIN_VALUE)
-            if (offset == Long.MIN_VALUE)
-                throw DBException.RecidNotFound()
-
-            //null record
-            if (offset == 0L) {
-                if (expected != null)
-                    return false
-                append(recid, newRecord)
-                return true
-            }
-
-            if (expected == null)
-                return false
-
-            val (recid2, size) = readRecidSize(offset)
-            assert(recid == recid2)
-
-            val old = readRecord(offset + 12, size)
-
-            if (!Arrays.equals(expected, old))
-                return false
-
-            append(recid, newRecord)
-            return true
+        return compareAnd(recid, expectedBytes) {
+            val offset = offsets[recid]
+            tombStoneRecord(c, offset)
+            append(recid, newRecordBytes)
         }
     }
 
-    override fun <K> compareAndDelete(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?): Boolean {
-        val expected = Serializers.serializeToByteArrayNullable(expectedOldRecord, serializer)
+    override fun <K> compareAndDelete(recid: Long, serializer: Serializer<K>, expectedOldRecord: K): Boolean {
+        val expected =
+            Serializers.serializeToByteArrayNullable(expectedOldRecord, serializer) ?: throw DBException.DataNull()
 
+        return compareAnd(recid, expected) {
+            val offset = offsets.remove(recid)
+            tombStoneRecord(c, offset)
+            appendRecord(c, recid, NULL_VALUE)
+        }
+    }
+
+    private fun compareAnd(recid: Long, expected: ByteArray, block: () -> Unit): Boolean {
         lock.lockWrite {
-            val offset = offsets.getIfAbsent(recid, Long.MIN_VALUE)
+            val offset = offsets.getOrDefault(recid, Long.MIN_VALUE)
             if (offset == Long.MIN_VALUE)
                 throw DBException.RecidNotFound()
-
-            //null record
-            if (offset == 0L) {
-                if (expected != null)
-                    return false
-                appendRecidSize(recid, -2)
-                offsets.removeKey(recid)
-                freeRecids.add(recid)
-                return true
-            }
-
-            if (expected == null)
-                return false
 
             val (recid2, size) = readRecidSize(offset)
             assert(recid == recid2)
 
             val old = readRecord(offset + 12, size)
 
-            if (!Arrays.equals(expected, old))
+            if (!expected.contentEquals(old))
                 return false
 
-            appendRecidSize(recid, -2)
-            offsets.removeKey(recid)
-            freeRecids.add(recid)
+            block()
             return true
         }
     }
@@ -261,15 +238,14 @@ class StoreAppend(
         lock.lockWrite {
             if (!offsets.containsKey(recid))
                 throw DBException.RecidNotFound()
-            appendRecidSize(recid, -2)
-            offsets.removeKey(recid)
-            freeRecids.add(recid)
+            val offset = offsets.remove(recid)
+            tombStoneRecord(c, offset)
+            appendRecord(c, recid, NULL_VALUE)
         }
     }
 
-    override fun <E> getAndDelete(recid: Long, serializer: Serializer<E>): E? {
+    override fun <K> getAndDelete(recid: Long, serializer: Serializer<K>): K {
         lock.lockWrite {
-            //TODO optimize
             val ret = get(recid, serializer)
             delete(recid, serializer)
             return ret
@@ -288,9 +264,76 @@ class StoreAppend(
     }
 
     override fun compact() {
+        if (c.size() <= 8) {
+            return
+        }
+
+        val newFile = File.createTempFile(UUID.randomUUID().toString(), ".tmp", file.subpath(0, file.nameCount).toFile())
+        val c2 = FileChannel.open(
+            newFile.toPath(),
+            StandardOpenOption.WRITE,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.READ
+        )
+
+        DataIO.writeFully(c2, ByteBuffer.allocate(8))
+
+        val newOffsets = Long2LongRBTreeMap()
+        //Copy as much as possible while not holding the lock
+        var pos = 8L
+        pos = compactCopy(c2, newOffsets, pos)
+
+        //Try to copy anything new after getting the lock to synchronize the files.
+        //This should be much faster than the first
+        lock.lockWrite {
+            compactCopy(c2, newOffsets, pos)
+            val success = newFile.renameTo(file.toFile())
+            this.c = c2
+            this.offsets = newOffsets
+        }
+    }
+
+    private fun compactCopy(c2: FileChannel, newOffsets: MutableMap<Long, Long>, startPos: Long): Long {
+        var pos = startPos
+        while (pos < c.size()) {
+            val offset = pos
+            try {
+                val (recid, size) = readRecidSize(offset)
+                pos += 12 + size.coerceAtLeast(0)
+
+                if (recid != TOMBSTONE_RECID) {
+                    when {
+                        size == 0 && newOffsets.containsKey(recid) -> {
+                            //This case should only happen when the current file has a delete while compact is running,
+                            //and compact has already added the value before the tombstoning
+                            val newOffset = newOffsets[recid]!!
+                            tombStoneRecord(c2, newOffset)
+                        }
+                        //TODO should just be else
+                        size > 0 -> {
+                            //TODO assert that the recid exists?
+                            val record = readRecord(12 + offset, size)
+                            val newOffset = c2.position()
+                            appendRecord(c2, recid, record)
+                            newOffsets[recid] = newOffset
+                        }
+                    }
+                }
+            } catch (e: EOFException) {
+                break
+            }
+        }
+        return pos
     }
 
     override fun isEmpty(): Boolean {
-        return maxRecid == 0L
+        lock.lockWrite {
+            return offsets.size == 0
+        }
+    }
+
+    companion object {
+        val NULL_VALUE = ByteArray(0)
+        const val TOMBSTONE_RECID = 0L
     }
 }

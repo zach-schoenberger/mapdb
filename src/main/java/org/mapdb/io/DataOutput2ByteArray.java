@@ -14,10 +14,14 @@ public class DataOutput2ByteArray extends OutputStream implements DataOutput2 {
     public int sizeMask;
 
 
-    public DataOutput2ByteArray() {
+    public DataOutput2ByteArray(int n) {
         pos = 0;
-        buf = new byte[128]; //PERF take hint from serializer for initial size
+        buf = new byte[n]; //PERF take hint from serializer for initial size
         sizeMask = 0xFFFFFFFF - (buf.length - 1);
+    }
+
+    public DataOutput2ByteArray() {
+        this(128);
     }
 
 

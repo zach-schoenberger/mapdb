@@ -13,7 +13,7 @@ class RBTreeTest {
     fun rbTest() {
         val tree = Long2LongRBTreeMap("./temp.db")
         (1..100).map { Math.random() * 100 }.map { it.toLong() }.forEach {
-            tree.add(it)
+            tree[it] = it*2
         }
         tree.print()
 

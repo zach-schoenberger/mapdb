@@ -11,7 +11,7 @@ interface Store : Closeable {
      *
      * @return record or null if record was not allocated yet, or was deleted
      **/
-    fun <K> get(recid: Long, serializer: Serializer<K>): K?
+    fun <K> get(recid: Long, serializer: Serializer<K>): K
 
     override fun close()
 
@@ -36,46 +36,31 @@ interface MutableStore : Store {
     fun preallocate(): Long
 
     /** insert new record, returns recid under which record was stored */
-    fun <K> put(record: K?, serializer: Serializer<K>): Long
+    fun <K> put(record: K, serializer: Serializer<K>): Long
 
     /** updateAtomic existing record with new value */
-    fun <K> update(recid: Long, serializer: Serializer<K>, newRecord: K?)
+    fun <K> update(recid: Long, serializer: Serializer<K>, newRecord: K)
+    fun <K> update(recid: Long, serializer: Serializer<K>, m: (K) -> K)
 
-    fun <K> getAndUpdate(recid: Long, serializer: Serializer<K>, newRecord: K?): K? {
+    fun <K> getAndUpdate(recid: Long, serializer: Serializer<K>, newRecord: K): K {
         val old = get(recid, serializer)
         update(recid, serializer, newRecord)
-        return old //TODO atomic
+        return old
     }
 
-    fun <K> updateAndGet(recid: Long, serializer: Serializer<K>, m: (K?) -> K?): K? {
+    fun <K> updateAndGet(recid: Long, serializer: Serializer<K>, m: (K) -> K): K {
         val old = get(recid, serializer)
         val newVal = m(old)
         update(recid, serializer, newVal)
-        return newVal //TODO atomic
-    }
-
-    fun <K> updateAtomic(recid: Long, serializer: Serializer<K>, m: (K?) -> K?)
-
-    fun <K> getAndUpdateAtomic(recid: Long, serializer: Serializer<K>, m: (K?) -> K?): K? {
-        val oldVal = get(recid, serializer)
-        val newVal = m(oldVal)
-        update(recid, serializer, newVal)
-        return oldVal
-        //TODO atomic
-    }
-
-    fun <K> updateWeak(recid: Long, serializer: Serializer<K>, m: (K?) -> K?) {
-        val oldRec = get(recid, serializer)
-        val newRec = m(oldRec)
-        update(recid, serializer, newRec)
+        return newVal
     }
 
     /** atomically compares and swap records
      * @return true if compare was sucessfull and record was swapped, else false
      */
-    fun <K> compareAndUpdate(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?, newRecord: K?): Boolean
+    fun <K> compareAndUpdate(recid: Long, serializer: Serializer<K>, expectedOldRecord: K, newRecord: K): Boolean
 
-    fun <K> compareAndDelete(recid: Long, serializer: Serializer<K>, expectedOldRecord: K?): Boolean
+    fun <K> compareAndDelete(recid: Long, serializer: Serializer<K>, expectedOldRecord: K): Boolean
 
     /** delete existing record */
     fun <K> delete(recid: Long, serializer: Serializer<K>)
@@ -92,7 +77,7 @@ interface MutableStore : Store {
     //TODO bg operations?
     fun compact()
 
-    fun <E> getAndDelete(recid: Long, serializer: Serializer<E>): E?
+    fun <K> getAndDelete(recid: Long, serializer: Serializer<K>): K
 }
 
 object Recids {

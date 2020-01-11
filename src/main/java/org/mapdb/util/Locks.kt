@@ -14,24 +14,20 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
  */
 
 inline fun <E> ReadWriteLock?.lockWrite(f: () -> E): E {
-    if (this != null)
-        this.writeLock().lock()
+    this?.writeLock()?.lock()
     try {
         return f.invoke()
     } finally {
-        if (this != null)
-            this.writeLock().unlock()
+        this?.writeLock()?.unlock()
     }
 }
 
 inline fun <E> ReadWriteLock?.lockRead(f: () -> E): E {
-    if (this != null)
-        this.readLock().lock()
+    this?.readLock()?.lock()
     try {
         return f.invoke()
     } finally {
-        if (this != null)
-            this.readLock().unlock()
+        this?.readLock()?.unlock()
     }
 }
 

@@ -41,10 +41,10 @@ sourceSets {
     test.kotlin.srcDirs += 'src/test/java'
     test.java.srcDirs += 'src/test/java'
 
-    main.kotlin.srcDirs += 'srcGen/main/java'
-    main.java.srcDirs += 'srcGen/main/java'
-    test.kotlin.srcDirs += 'srcGen/test/java'
-    test.java.srcDirs += 'srcGen/test/java'
+//    main.kotlin.srcDirs += 'srcGen/main/java'
+//    main.java.srcDirs += 'srcGen/main/java'
+//    test.kotlin.srcDirs += 'srcGen/test/java'
+//    test.java.srcDirs += 'srcGen/test/java'
 
 }
 

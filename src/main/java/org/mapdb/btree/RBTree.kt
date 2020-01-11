@@ -4,13 +4,11 @@ import java.io.DataInput
 import java.io.DataOutput
 import java.io.RandomAccessFile
 import java.util.Comparator
-import java.util.LinkedList
 import java.util.NavigableMap
 import java.util.NavigableSet
 import java.util.SortedMap
-import java.util.SortedSet
 
-class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long,Long>(), NavigableMap<Long, Long> {
+class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long, Long>(), NavigableMap<Long, Long> {
     val raf = RandomAccessFile(fileName, "rw")
     var currentIndex = 0L
     var cnt = 0L
@@ -88,7 +86,7 @@ class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long,Long>()
         val currentNode = getNode(nodeIndex)!!
 
         if (currentNode.parentNodeIndex == NULL_INDEX) {
-            if(!currentNode.isBlack) {
+            if (!currentNode.isBlack) {
                 currentNode.isBlack = true
                 currentNode.writeNode()
             }
@@ -103,7 +101,7 @@ class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long,Long>()
         val gpNode = getNode(parentNode.parentNodeIndex)
         if (gpNode != null) {
             val uncleNode = getUncle(parentNode, gpNode)
-            if (uncleNode != null && !uncleNode.isBlack()){
+            if (uncleNode != null && !uncleNode.isBlack()) {
                 swapColors(gpNode, parentNode, uncleNode)
                 ft(gpNode.index)
             } else {
@@ -132,7 +130,6 @@ class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long,Long>()
 
     fun outerRotation(currentNodeIndex: Long) {
         outerRotationA(currentNodeIndex)
-
     }
 
     fun outerRotationA(currentNodeIndex: Long) {
@@ -254,38 +251,38 @@ class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long,Long>()
         parentNode?.writeNode()
     }
 
-    override fun iterator(): MutableIterator<Long> {
-        return object : MutableIterator<Long> {
-            val nodeQueue = LinkedList<Node>()
-
-            init {
-                var currentNode = getRootNode()
-                while(currentNode != null) {
-                    nodeQueue.push(currentNode)
-                    currentNode = getNode(currentNode.leftNodeIndex)
-                }
-            }
-
-            override fun hasNext(): Boolean {
-                return nodeQueue.size > 0
-            }
-
-            override fun next(): Long {
-                val ret = nodeQueue.pop()
-                var currentNode = getNode(ret.rightNodeIndex)
-                while (currentNode != null) {
-                    nodeQueue.push(currentNode)
-                    currentNode = getNode(currentNode!!.leftNodeIndex)
-                }
-
-                return ret.value
-            }
-
-            override fun remove() {
-                TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-            }
-        }
-    }
+    // override fun iterator(): MutableIterator<Long> {
+    //     return object : MutableIterator<Long> {
+    //         val nodeQueue = LinkedList<Node>()
+    //
+    //         init {
+    //             var currentNode = getRootNode()
+    //             while(currentNode != null) {
+    //                 nodeQueue.push(currentNode)
+    //                 currentNode = getNode(currentNode.leftNodeIndex)
+    //             }
+    //         }
+    //
+    //         override fun hasNext(): Boolean {
+    //             return nodeQueue.size > 0
+    //         }
+    //
+    //         override fun next(): Long {
+    //             val ret = nodeQueue.pop()
+    //             var currentNode = getNode(ret.rightNodeIndex)
+    //             while (currentNode != null) {
+    //                 nodeQueue.push(currentNode)
+    //                 currentNode = getNode(currentNode!!.leftNodeIndex)
+    //             }
+    //
+    //             return ret.value
+    //         }
+    //
+    //         override fun remove() {
+    //             TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    //         }
+    //     }
+    // }
 
     fun print() {
         printInOrder(getRootNode()!!, 0)
@@ -432,7 +429,7 @@ class Long2LongRBTreeMap(val fileName: String) : AbstractMutableMap<Long,Long>()
     }
 }
 
-public data class Node(
+data class Node(
     val key: Long,
     val value: Long,
     var index: Long = Long2LongRBTreeMap.NULL_INDEX,

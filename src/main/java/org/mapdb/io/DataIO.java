@@ -395,6 +395,10 @@ public final class DataIO {
             rem -= f.write(buf);
     }
 
+    public static void writeFully(FileChannel f, byte[] buf) throws IOException {
+        f.write(ByteBuffer.wrap(buf));
+    }
+
 
     public static void readFully(@NotNull FileChannel f, @NotNull ByteBuffer buf, long offset) throws IOException {
         int rem = buf.remaining();

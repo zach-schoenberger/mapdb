@@ -10,9 +10,10 @@ import java.util.NavigableSet
 import java.util.SortedMap
 
 class LongMap<V>(
-        private val store: MutableStore,
-        private val rootRecid: Long,
-        private val valSer: Serializer<V>
+    // private val keyStore: MutableStore,
+    private val valueStore: MutableStore,
+    private val rootRecid: Long,
+    private val valSer: Serializer<V>
 ) : NavigableMap<Long, V>, AbstractMutableMap<Long, V>() {
 
     //    private val recidMap = Long2LongRBTreeMap()
@@ -33,15 +34,23 @@ class LongMap<V>(
         val recid = recidMap[key]
         return when (recid) {
             0L -> null
-            else -> store.get(recid, valSer)
+            else -> valueStore.get(recid, valSer)
         }
     }
 
     override fun clear() {
-        recidMap.forEach { t, u ->
-            store.update(u, valSer, null)
+        recidMap.forEach { (_, u) ->
+            valueStore.delete(u, valSer)
         }
         recidMap.clear()
+    }
+
+    override fun remove(key: Long): V? {
+        val ret = get(key) ?: return null
+        val recid = recidMap.remove(key)
+        valueStore.delete(recid, valSer)
+
+        return ret
     }
 
     override val entries: MutableSet<MutableMap.MutableEntry<Long, V>>
@@ -61,7 +70,7 @@ class LongMap<V>(
                     }
 
                     override fun next(): MutableMap.MutableEntry<Long, V> {
-                        val key = iter.next()
+                        val key = iter.nextLong()
                         val value = this@LongMap[key] ?: throw NoSuchElementException()
                         lastKey = key
                         lastValue = value
@@ -85,25 +94,26 @@ class LongMap<V>(
         val recid = recidMap.get(key)
         return when (recid) {
             0L -> {
-                val recid = store.put(value, valSer)
-                recidMap[key] = recid
+                recidMap[key] = valueStore.put(value, valSer)
                 null
             }
             else -> {
-                store.getAndUpdate(recid, valSer, value)
+                valueStore.getAndUpdate(recid, valSer, value)
             }
         }
     }
 
-
-    private inner class MapEntry<K, V>(override val key: K, override var value: V, val backingMap: AbstractMutableMap<K, V>) : MutableMap.MutableEntry<K, V> {
+    private inner class MapEntry<K, V>(
+        override val key: K,
+        override var value: V,
+        val backingMap: AbstractMutableMap<K, V>
+    ) : MutableMap.MutableEntry<K, V> {
         override fun setValue(newValue: V): V {
             val oldValue = value
             value = newValue
             backingMap[key] = newValue
             return oldValue
         }
-
     }
 
     override fun floorKey(key: Long): Long? {
@@ -143,7 +153,12 @@ class LongMap<V>(
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun subMap(fromKey: Long?, fromInclusive: Boolean, toKey: Long?, toInclusive: Boolean): NavigableMap<Long, V> {
+    override fun subMap(
+        fromKey: Long?,
+        fromInclusive: Boolean,
+        toKey: Long?,
+        toInclusive: Boolean
+    ): NavigableMap<Long, V> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -184,7 +199,7 @@ class LongMap<V>(
             recidMap.isEmpty() -> null
             else -> {
                 val key = recidMap.lastLongKey()
-                val value = store.get(recidMap.get(key), valSer) ?: throw NoSuchElementException()
+                val value = valueStore.get(recidMap.get(key), valSer) ?: throw NoSuchElementException()
                 MapEntry(key, value, this)
             }
         }
@@ -209,7 +224,7 @@ class LongMap<V>(
             recidMap.isEmpty() -> null
             else -> {
                 val key = recidMap.firstLongKey()
-                val value = store.get(recidMap.get(key), valSer) ?: throw NoSuchElementException()
+                val value = valueStore.get(recidMap.get(key), valSer) ?: throw NoSuchElementException()
                 MapEntry(key, value, this)
             }
         }
@@ -235,5 +250,4 @@ class LongMap<V>(
             else -> null
         }
     }
-
 }

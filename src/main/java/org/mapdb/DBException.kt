@@ -22,6 +22,8 @@ open class DBException : RuntimeException {
 
     class StoreReentry() : DBException("Can not modify store during updateAtomic")
 
+    class DataNull(msg: String = "data null") : DBException(msg)
+
     class DataAssert(msg: String = "data corrupted") : DBException(msg)
 
     class DataCorruption(msg: String = "data corrupted") : DBException(msg)
