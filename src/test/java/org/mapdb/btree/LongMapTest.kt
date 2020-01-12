@@ -4,14 +4,14 @@ import org.junit.Assert
 import org.junit.Test
 import org.junit.jupiter.api.BeforeEach
 import org.mapdb.ser.Serializers
-import org.mapdb.store.StoreAppend
+import org.mapdb.store.StoreAppendChannel
 import java.io.File
 import java.util.UUID
 import kotlin.random.Random
 
 class LongMapTest {
 
-    val store = StoreAppend(File.createTempFile(UUID.randomUUID().toString(), null).toPath())
+    val store = StoreAppendChannel(File.createTempFile(UUID.randomUUID().toString(), null).toPath())
     val map = LongMap<String>(store, 0, Serializers.STRING)
 
     @BeforeEach

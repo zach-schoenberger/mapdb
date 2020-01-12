@@ -10,37 +10,32 @@ import org.mapdb.util.lockRead
 import org.mapdb.util.lockWrite
 import java.io.EOFException
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
 import java.nio.file.Path
-import java.nio.file.StandardOpenOption
 import java.util.UUID
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
-class StoreAppend(
+class StoreAppendFile(
     val file: Path,
     override val isThreadSafe: Boolean = true
 ) : MutableStore {
 
-    private var c = FileChannel.open(
-        file,
-        StandardOpenOption.WRITE,
-        StandardOpenOption.CREATE,
-        StandardOpenOption.READ
-    )
-
     protected val lock: ReadWriteLock? = if (isThreadSafe) ReentrantReadWriteLock() else null
+    private var raf = RandomAccessFile(file.toFile(), "rw")
 
     /** key is recid, value is offset in channel */
     // protected val offsets = LongLongHashMap()
     protected var offsets = Long2LongRBTreeMap()
     protected var maxRecid: Long = 1L
+    protected var curOffset = 0L
 
     init {
-        val csize = c.size()
+        val csize = raf.length()
         if (csize == 0L) {
-            DataIO.writeFully(c, ByteBuffer.allocate(8))
+            raf.write(ByteArray(8))
+            curOffset = 8
         } else {
             var pos = 8L
             //read record positions
@@ -54,12 +49,14 @@ class StoreAppend(
                     maxRecid = recid.coerceAtLeast(maxRecid)
                 }
             }
+            curOffset = pos
         }
     }
 
     protected fun readRecidSize(offset: Long): Pair<Long, Int> {
         val b = ByteBuffer.allocate(12)
-        DataIO.readFully(c, b, offset)
+        raf.seek(offset)
+        raf.read(b.array())
         val recid = DataIO.getLong(b.array(), 0)
         val size = DataIO.getInt(b.array(), 8)
         return Pair(recid, size)
@@ -67,29 +64,32 @@ class StoreAppend(
 
     protected fun readRecord(offset: Long, size: Int): ByteArray {
         val b = ByteBuffer.allocate(size)
-        DataIO.readFully(c, b, offset)
+        raf.seek(offset)
+        raf.read(b.array())
         return b.array()
     }
 
     private fun append(recid: Long, serialized: ByteArray): Long {
-        val offset = c.position()
-        appendRecord(c, recid, serialized)
+        val offset = appendRecord(raf, recid, serialized)
         offsets[recid] = offset
         return offset
     }
 
-    private fun appendRecord(c: FileChannel, recid: Long, serialized: ByteArray) {
+    private fun appendRecord(raf: RandomAccessFile, recid: Long, serialized: ByteArray): Long {
         val b1 = ByteArray(12 + serialized.size)
         DataIO.putLong(b1, 0, recid)
         DataIO.putInt(b1, 8, serialized.size)
         serialized.copyInto(b1, 12)
-        DataIO.writeFully(c, b1)
+        val offset = curOffset
+        raf.seek(curOffset)
+        raf.write(b1)
+        curOffset += b1.size
+        return offset
     }
 
-    private fun tombStoneRecord(c: FileChannel, offset: Long) {
-        val b1 = ByteArray(8)
-        DataIO.putLong(b1, 0, TOMBSTONE_RECID)
-        c.write(ByteBuffer.wrap(b1), offset)
+    private fun tombStoneRecord(raf: RandomAccessFile, offset: Long) {
+        raf.seek(offset)
+        raf.writeLong(TOMBSTONE_RECID)
     }
 
     override fun <K> get(recid: Long, serializer: Serializer<K>): K {
@@ -169,7 +169,7 @@ class StoreAppend(
                 throw DBException.RecidNotFound()
 
             val offset = offsets[recid]
-            tombStoneRecord(c, offset)
+            tombStoneRecord(raf, offset)
             append(recid, serialized)
         }
     }
@@ -181,7 +181,7 @@ class StoreAppend(
             val serialized =
                 Serializers.serializeToByteArrayNullable(newRec, serializer) ?: throw DBException.DataNull()
             val offset = offsets[recid]
-            tombStoneRecord(c, offset)
+            tombStoneRecord(raf, offset)
             append(recid, serialized)
         }
     }
@@ -199,7 +199,7 @@ class StoreAppend(
 
         return compareAnd(recid, expectedBytes) {
             val offset = offsets[recid]
-            tombStoneRecord(c, offset)
+            tombStoneRecord(raf, offset)
             append(recid, newRecordBytes)
         }
     }
@@ -210,8 +210,8 @@ class StoreAppend(
 
         return compareAnd(recid, expected) {
             val offset = offsets.remove(recid)
-            tombStoneRecord(c, offset)
-            appendRecord(c, recid, NULL_VALUE)
+            tombStoneRecord(raf, offset)
+            appendRecord(raf, recid, NULL_VALUE)
         }
     }
 
@@ -239,8 +239,8 @@ class StoreAppend(
             if (!offsets.containsKey(recid))
                 throw DBException.RecidNotFound()
             val offset = offsets.remove(recid)
-            tombStoneRecord(c, offset)
-            appendRecord(c, recid, NULL_VALUE)
+            tombStoneRecord(raf, offset)
+            appendRecord(raf, recid, NULL_VALUE)
         }
     }
 
@@ -253,49 +253,45 @@ class StoreAppend(
     }
 
     override fun close() {
-        c.close()
+        raf.close()
     }
 
     override fun verify() {
     }
 
     override fun commit() {
-        c.force(true)
     }
 
     override fun compact() {
-        if (c.size() <= 8) {
+        if (raf.length() <= 8) {
             return
         }
 
         val newFile = File.createTempFile(UUID.randomUUID().toString(), ".tmp", file.subpath(0, file.nameCount).toFile())
-        val c2 = FileChannel.open(
-            newFile.toPath(),
-            StandardOpenOption.WRITE,
-            StandardOpenOption.CREATE,
-            StandardOpenOption.READ
+        val raf2 = RandomAccessFile(
+            newFile,
+            "rw"
         )
 
-        DataIO.writeFully(c2, ByteBuffer.allocate(8))
-
+        raf2.writeLong(0)
         val newOffsets = Long2LongRBTreeMap()
         //Copy as much as possible while not holding the lock
         var pos = 8L
-        pos = compactCopy(c2, newOffsets, pos)
+        pos = compactCopy(raf2, newOffsets, pos)
 
         //Try to copy anything new after getting the lock to synchronize the files.
         //This should be much faster than the first
         lock.lockWrite {
-            compactCopy(c2, newOffsets, pos)
+            compactCopy(raf2, newOffsets, pos)
             val success = newFile.renameTo(file.toFile())
-            this.c = c2
+            this.raf = raf2
             this.offsets = newOffsets
         }
     }
 
-    private fun compactCopy(c2: FileChannel, newOffsets: MutableMap<Long, Long>, startPos: Long): Long {
+    private fun compactCopy(raf2: RandomAccessFile, newOffsets: MutableMap<Long, Long>, startPos: Long): Long {
         var pos = startPos
-        while (pos < c.size()) {
+        while (pos < raf2.length()) {
             val offset = pos
             try {
                 val (recid, size) = readRecidSize(offset)
@@ -307,15 +303,13 @@ class StoreAppend(
                             //This case should only happen when the current file has a delete while compact is running,
                             //and compact has already added the value before the tombstoning
                             val newOffset = newOffsets[recid]!!
-                            tombStoneRecord(c2, newOffset)
+                            tombStoneRecord(raf2, newOffset)
                         }
                         //TODO should just be else
                         size > 0 -> {
                             //TODO assert that the recid exists?
                             val record = readRecord(12 + offset, size)
-                            val newOffset = c2.position()
-                            appendRecord(c2, recid, record)
-                            newOffsets[recid] = newOffset
+                            newOffsets[recid] = appendRecord(raf2, recid, record)
                         }
                     }
                 }
