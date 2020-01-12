@@ -1,6 +1,5 @@
 package org.mapdb.store
 
-import org.junit.Assert
 import org.junit.Test
 import org.mapdb.ser.Serializers
 import java.io.File
